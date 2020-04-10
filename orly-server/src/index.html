@@ -22,6 +22,8 @@
                 flex: 1 0 auto;
                 display: flex;
                 flex-flow: column nowrap;
+                padding-bottom: 3rem;
+                
                 font-size: 1.2rem;
                 background: #333;
                 color: white;
@@ -29,13 +31,30 @@
             
             #chat-output .message {
                 display: block;
+                margin-top: 0.25rem;
             }
             #chat-output .message .user {
                 color: cornflowerblue;
                 font-weight: bold;
             }
-            #chat-output .message .status {
+            #chat-output .message .text {
+                display: inline-block;
+                white-space: pre-wrap;
+                word-break: break-all;
+            }
+            #chat-output .message .text > p {
+                display: contents;
+            }
+            #chat-output .message.status {
                 color: goldenrod;
+                font-weight: bold;
+            }
+            #chat-output .message.error {
+                margin: 0 0.25rem;
+                padding: 0.25rem;
+                background: rgb(128, 0, 0);
+                border-radius: 3px;
+                color: white;
                 font-weight: bold;
             }
             
@@ -43,6 +62,8 @@
                 display: flex;
                 flex-flow: row nowrap;
                 font-size: 1.2rem;
+                position: sticky;
+                bottom: 0;
             }
             
             #chat-input input {
@@ -53,6 +74,7 @@
                 padding: 0.25rem;
             }
         </style>
+        <script src="/showdown.min.js"></script>
     </head>
     <body>
         <div id="chat-output">
@@ -82,28 +104,51 @@
         var uri = 'ws://' + host + '/websocket?name=' + my_name;
         var ws = new WebSocket(uri);
         
+        var converter = new showdown.Converter();
         function send_message(message) {
+            message = message.trim();
+            if(message.length === 0) {
+                return;
+            }
+            
             ws.send(message);
-            show_message(my_name, message);
+            show_message(my_name, converter.makeHtml(message));
+            window.scrollTo(0,document.body.scrollHeight);
         }
         
         function show_message(user, message) {
-            var line = document.createElement('p');
+            var line = document.createElement('div');
             line.classList.add('message');
-            line.innerHTML = "<span class=user>"+user+"</span>: <span class=text>"+message+"</span>";
+            line.innerHTML = "<span class=user>"+user+"</span>: <div class=text>"+message+"</div>";
             chat_output.appendChild(line);
         }
         
         function show_statemsg(message) {
             var line = document.createElement('p');
-            line.classList.add('message');
-            line.innerHTML = "<span class=status>"+message+"</span>";
+            line.classList.add('message', 'status');
+            line.innerHTML = message;
             chat_output.appendChild(line);
+        }
+        
+        function show_errormsg(message) {
+            var line = document.createElement('p');
+            line.classList.add('message', 'error');
+            line.innerHTML = message;
+            chat_output.appendChild(line);
+            window.scrollTo(0,document.body.scrollHeight);
         }
         
         ws.onopen = function() {
             chat_output.innerHTML = "<p><em>Connected!</em></p>";
             chat_input_txt.focus();
+        }
+        ws.onerror = function() {
+            show_errormsg("A WebSocket-error occurred.");
+            document.querySelector("#chat-input").style.display = 'none';
+        }
+        ws.onclose = function() {
+            show_errormsg("Connection lost.");
+            document.querySelector("#chat-input").style.display = 'none';
         }
         ws.onmessage = function(msg) {
             var json = null;
@@ -130,6 +175,9 @@
                     break;
                 case "user.leave":
                     show_statemsg(getUser(json.user).name + " left the chat.");
+                    break;
+                default:
+                    show_errormsg("Unknown Packet Type: "+json.type+"<br><pre>"+msg.data+"</pre>");
                     break;
             }
         };

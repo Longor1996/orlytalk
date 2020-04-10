@@ -54,7 +54,11 @@ async fn main() {
     
     let index = warp::path::end().map(|| warp::reply::html(include_str!("index.html")));
     
+    let showdown = warp::path!("showdown.min.js")
+        .map(|| warp::reply::html(include_str!("showdown.min.js")));
+    
     let routes = index
+        .or(showdown)
         .or(websocket)
         .or(hello)
     ;
@@ -152,12 +156,46 @@ async fn user_connected(ws: warp::ws::WebSocket, ucr: UserConnectionRequest, use
 async fn user_message(my_id: UserId, msg: Message, users: &Users) {
     // Skip any non-Text messages...
     let msg = if let Ok(s) = msg.to_str() {
-        s
+        s.trim()
     } else {
         return;
     };
     
-    println!("User #{} sent message: {}", my_id, msg);
+    if msg.len() == 0 {
+        println!("User #{} sent empty message.", my_id);
+        if let Some(online_user) = users.lock().await.get(&my_id) {
+            let err = json!({
+                "type": "user.message.error",
+                "error": "message too empty"
+            }).to_string();
+            if let Err(_disconnected) = online_user.wsrx.send(Ok(Message::text(err))) {
+                // Nothing to do here.
+            }
+        }
+        return;
+    }
+    
+    if msg.len() > 1024 {
+        println!("User #{} sent message that is too long.", my_id);
+        if let Some(online_user) = users.lock().await.get(&my_id) {
+            let err = json!({
+                "type": "user.message.error",
+                "error": "message too long"
+            }).to_string();
+            if let Err(_disconnected) = online_user.wsrx.send(Ok(Message::text(err))) {
+                // Nothing to do here.
+            }
+        }
+        return;
+    }
+    
+    println!("User #{} sent message.", my_id);
+    
+    use comrak::{markdown_to_html, ComrakOptions};
+    let msg = markdown_to_html(msg, &ComrakOptions::default());
+    let msg = msg.trim_start_matches("<p>");
+    let msg = msg.trim_end_matches("\\n");
+    let msg = msg.trim_end_matches("</p>");
     
     let new_msg = json!({
         "type": "user.message",
