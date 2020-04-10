@@ -1,0 +1,7 @@
+# This is a virtual workspace.
+# One cannot add dependencies here.
+
+[workspace]
+members = [
+	"orly-server",
+]

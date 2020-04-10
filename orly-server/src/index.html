@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>O'Rly Talk</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+            }
+            html, body {
+                font-size: 16px;
+                background: black;
+            }
+            body {
+                width: 100%;
+                height: 100vh;
+                display: flex;
+                flex-flow: column nowrap;
+            }
+            
+            #chat-output {
+                flex: 1 0 auto;
+                display: flex;
+                flex-flow: column nowrap;
+                font-size: 1.2rem;
+                background: #333;
+                color: white;
+            }
+            
+            #chat-output .message {
+                display: block;
+            }
+            #chat-output .message .user {
+                color: cornflowerblue;
+                font-weight: bold;
+            }
+            #chat-output .message .status {
+                color: goldenrod;
+                font-weight: bold;
+            }
+            
+            #chat-input {
+                display: flex;
+                flex-flow: row nowrap;
+                font-size: 1.2rem;
+            }
+            
+            #chat-input input {
+                flex: 1 0 auto;
+                padding: 0.25rem;
+            }
+            #chat-input button {
+                padding: 0.25rem;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="chat-output">
+            <p><em>Connecting...</em></p>
+        </div>
+        <div id="chat-input">
+            <input type="text" id="text" />
+            <button type="button">Send</button>
+        </div>
+        <script type="text/javascript">
+        var chat_output = document.querySelector("#chat-output");
+        var chat_input_txt = document.querySelector("#chat-input input");
+        var chat_input_btn = document.querySelector("#chat-input button");
+        
+        var host = location.host;
+        if(location.port !== '3030') {
+            host = "localhost:3030";
+        }
+        
+        var users = {};
+        function getUser(uuid) {
+            return users[uuid];
+        }
+        
+        var my_name = window.prompt("Name?", "Usr"+Math.floor(Math.random()*9999));
+        
+        var uri = 'ws://' + host + '/websocket?name=' + my_name;
+        var ws = new WebSocket(uri);
+        
+        function send_message(message) {
+            ws.send(message);
+            show_message(my_name, message);
+        }
+        
+        function show_message(user, message) {
+            var line = document.createElement('p');
+            line.classList.add('message');
+            line.innerHTML = "<span class=user>"+user+"</span>: <span class=text>"+message+"</span>";
+            chat_output.appendChild(line);
+        }
+        
+        function show_statemsg(message) {
+            var line = document.createElement('p');
+            line.classList.add('message');
+            line.innerHTML = "<span class=status>"+message+"</span>";
+            chat_output.appendChild(line);
+        }
+        
+        ws.onopen = function() {
+            chat_output.innerHTML = "<p><em>Connected!</em></p>";
+            chat_input_txt.focus();
+        }
+        ws.onmessage = function(msg) {
+            var json = null;
+            
+            try {
+                json = JSON.parse(msg.data);
+            } catch (error) {
+                console.error(error, msg.data);
+                debugger;
+            }
+            
+            switch(json.type) {
+                case "user.join":
+                    users[json.user.uuid] = json.user;
+                    show_statemsg(getUser(json.user.uuid).name + " joined the chat.");
+                    break;
+                case "user.message":
+                    show_message(getUser(json.user).name, json.message);
+                    break;
+                case "user.leave":
+                    show_statemsg(getUser(json.user).name + " left the chat.");
+                    break;
+            }
+        };
+        
+        chat_input_txt.addEventListener('keyup', function(evt) {
+            if(evt.key !== 'Enter') return;
+            var msg = chat_input_txt.value;
+            text.value = '';
+            send_message(msg);
+        });
+        
+        chat_input_btn.onclick = function() {
+            var msg = chat_input_txt.value;
+            text.value = '';
+            send_message(msg);
+        };
+        </script>
+    </body>
+</html>
