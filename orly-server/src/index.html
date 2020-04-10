@@ -116,6 +116,11 @@
             }
             
             switch(json.type) {
+                case "user-list":
+                    for(var i=0, item=null; i<json.users.length, item=json.users[i];i++) {
+                        users[item.uuid] = item;
+                    }
+                    break;
                 case "user.join":
                     users[json.user.uuid] = json.user;
                     show_statemsg(getUser(json.user.uuid).name + " joined the chat.");
@@ -140,6 +145,7 @@
             var msg = chat_input_txt.value;
             text.value = '';
             send_message(msg);
+            chat_input_txt.focus();
         };
         </script>
     </body>

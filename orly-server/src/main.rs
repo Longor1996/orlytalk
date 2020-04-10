@@ -110,6 +110,18 @@ async fn user_connected(ws: warp::ws::WebSocket, ucr: UserConnectionRequest, use
         }
     }
     
+    let user_list: Vec<User> = users.lock().await.iter().map(|(uuid, user)| user.user.clone()).collect();
+    let user_list_msg = json!({
+        "type": "user-list",
+        "users": user_list
+    }).to_string();
+    
+    if let Err(_disconnected) = online_user.wsrx.send(Ok(Message::text(user_list_msg))) {
+        // The tx is disconnected, our `user_disconnected` code
+        // should be happening in another task, nothing more to
+        // do here.
+    }
+    
     // Save the sender in our list of connected users.
     users.lock().await.insert(my_id, online_user);
     
