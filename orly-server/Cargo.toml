@@ -1,6 +1,6 @@
 [package]
 name = "orly-server"
-version = "0.1.0"
+version = "0.0.1"
 authors = ["Longor1996 <lalongok@gmail.com>"]
 edition = "2018"
 
