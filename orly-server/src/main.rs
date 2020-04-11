@@ -9,14 +9,22 @@ use serde_json::json;
 
 //use rusqlite::{params, Connection, Result};
 use warp::ws::{Message, WebSocket};
-use warp::Filter;
+use warp::{Filter, http::Response, http::response::Builder};
 
 mod user;
 use user::*;
 
 struct OnlineUser {
     user: User,
-    wsrx: mpsc::UnboundedSender<Result<warp::ws::Message, warp::Error>>
+    wstx: mpsc::UnboundedSender<Result<warp::ws::Message, warp::Error>>
+}
+
+impl OnlineUser {
+    fn send_text(&self, msg: String) -> Result<(), tokio::sync::mpsc::error::SendError<Result<warp::filters::ws::Message, warp::Error>>>{
+        let msg = Message::text(msg);
+        let msg = Ok(msg);
+        self.wstx.send(msg)
+    }
 }
 
 type Users = Arc<Mutex<HashMap<UserId, OnlineUser>>>;
@@ -31,14 +39,14 @@ async fn main() {
     pretty_env_logger::init();
     println!("Hello, world!");
     
-    //let conn = Connection::open("db.sqlite").expect("Failed to start SQLite!");
+    let current_exe = std::env::current_exe().expect("Executable Location");
+    let working_dir = current_exe.parent().expect("Working Directory");
+    println!("Working Directory: {:?}", working_dir);
+    
+    let _conn = rusqlite::Connection::open(working_dir.join("db.sqlite")).expect("Failed to start SQLite!");
     
     let users = Arc::new(Mutex::new(HashMap::new()));
     let users = warp::any().map(move || users.clone());
-    
-    // GET /hello/warp => 200 OK with body "Hello, warp!"
-    let hello = warp::path!("hello" / String)
-        .map(|name| format!("Hello, {}!", name));
     
     let websocket = warp::path("websocket")
         .and(warp::path::end())
@@ -49,15 +57,28 @@ async fn main() {
             ws.on_upgrade(move |socket| user_connected(socket, ucr, users))
     });
     
-    let index = warp::path::end().map(|| warp::reply::html(include_str!("www/index.html")));
+    fn static_reply(content_type: &str, body: &'static str) -> Result<warp::http::Response<&'static str>, warp::http::Error> {
+        Response::builder()
+            .header("Content-type", content_type)
+            .body(body)
+    }
     
-    let showdown = warp::path!("showdown.min.js")
-        .map(|| warp::reply::html(include_str!("www/showdown.min.js")));
+    let index_html = warp::path::end().map(|| static_reply("text/html", include_str!("www/index.html")));
+    let index_css = warp::path!("index.css").map(|| static_reply("text/css", include_str!("www/index.css")));
     
-    let routes = index
-        .or(showdown)
+    let js_require = warp::path!("js" / "require.min.js").map(|| static_reply("application/javascript", include_str!("www/js/require.min.js")));
+    let js_showdown = warp::path!("js" / "showdown.min.js").map(|| static_reply("application/javascript", include_str!("www/js/showdown.min.js")));
+    let js_index = warp::path!("js" / "index.js").map(|| static_reply("application/javascript", include_str!("www/js/index.js")));
+    let js_index_map = warp::path!("js" / "index.js.map").map(|| static_reply("application/javascript", include_str!("www/js/index.js.map")));
+    
+    let routes = index_html
+        .or(index_css)
+        .or(js_require)
+        .or(js_showdown)
+        .or(js_index)
+        .or(js_index_map)
         .or(websocket)
-        .or(hello)
+        //.or(warp::fs::dir(working_dir.join("www")))
     ;
     
     warp::serve(routes)
@@ -90,7 +111,7 @@ async fn user_connected(ws: WebSocket, ucr: UserConnectionRequest, users: Users)
     
     let online_user = OnlineUser {
         user: user,
-        wsrx: tx
+        wstx: tx
     };
     
     let user_connect_msg = json!({
@@ -103,7 +124,7 @@ async fn user_connected(ws: WebSocket, ucr: UserConnectionRequest, users: Users)
     
     for (&uid, online_user) in users.lock().await.iter_mut() {
         if my_id != uid {
-            if let Err(_disconnected) = online_user.wsrx.send(Ok(Message::text(user_connect_msg.clone()))) {
+            if let Err(_disconnected) = online_user.send_text(user_connect_msg.clone()) {
                 // The tx is disconnected, our `user_disconnected` code
                 // should be happening in another task, nothing more to
                 // do here.
@@ -111,29 +132,23 @@ async fn user_connected(ws: WebSocket, ucr: UserConnectionRequest, users: Users)
         }
     }
     
-    let user_list: Vec<User> = users.lock().await.iter().map(|(uuid, user)| user.user.clone()).collect();
+    let user_list: Vec<User> = users.lock().await.iter().map(|(_, user)| user.user.clone()).collect();
     let user_list_msg = json!({
         "type": "user-list",
         "users": user_list
     }).to_string();
     
-    if let Err(_disconnected) = online_user.wsrx.send(Ok(Message::text(user_list_msg))) {
-        // The tx is disconnected, our `user_disconnected` code
-        // should be happening in another task, nothing more to
-        // do here.
+    if let Err(_disconnected) = online_user.send_text(user_list_msg) {
+        return;
     }
     
     // Save the sender in our list of connected users.
     users.lock().await.insert(my_id, online_user);
     
-    // Return a `Future` that is basically a state machine managing
-    // this specific user's connection.
-    
     // Make an extra clone to give to our disconnection handler...
     let users2 = users.clone();
     
-    // Every time the user sends a message, broadcast it to
-    // all other users...
+    // Process messages coming from the user...
     while let Some(result) = user_ws_rx.next().await {
         let msg = match result {
             Ok(msg) => msg,
@@ -142,7 +157,49 @@ async fn user_connected(ws: WebSocket, ucr: UserConnectionRequest, users: Users)
                 break;
             }
         };
-        user_message(my_id, msg, &users).await;
+        
+        if let Ok(msg) = msg.to_str() {
+            let json = match serde_json::from_str::<serde_json::Value>(msg) {
+                Ok(json) => json,
+                Err(err) => {
+                    eprintln!("User packet json could not parse: {}", err);
+                    break;
+                }
+            };
+            
+            let obj = match json {
+                serde_json::Value::Object(obj) => obj,
+                _ => {
+                    eprintln!("User packet json not object.");
+                    break;
+                }
+            };
+            
+            let msg_type = match obj.get("type").map(|v| v.as_str()).flatten() {
+                Some(v) => v,
+                None => {
+                    eprintln!("User packet is invalid: No type.");
+                    break;
+                },
+            };
+            
+            println!("User packet: {:?}", obj);
+            
+            match msg_type {
+                "user.message" => {
+                    if let Some(msg) = obj.get("type").map(|v| v.as_str()).flatten() {
+                        user_message(my_id, msg, &users).await;
+                    } else {
+                        eprintln!("User message packet is invalid: No message given.");
+                        break;
+                    }
+                },
+                _ => {
+                    eprintln!("User packet is invalid: Unknown type -> {}", msg_type);
+                    break;
+                }
+            }
+        }
     }
     
     // user_ws_rx stream will keep processing as long as the user stays
@@ -150,13 +207,7 @@ async fn user_connected(ws: WebSocket, ucr: UserConnectionRequest, users: Users)
     user_disconnected(my_id, &users2).await;
 }
 
-async fn user_message(my_id: UserId, msg: Message, users: &Users) {
-    // Skip any non-Text messages...
-    let msg = if let Ok(s) = msg.to_str() {
-        s.trim()
-    } else {
-        return;
-    };
+async fn user_message(my_id: UserId, msg: &str, users: &Users) {
     
     if msg.len() == 0 {
         println!("User #{} sent empty message.", my_id);
@@ -165,7 +216,7 @@ async fn user_message(my_id: UserId, msg: Message, users: &Users) {
                 "type": "user.message.error",
                 "error": "message too empty"
             }).to_string();
-            if let Err(_disconnected) = online_user.wsrx.send(Ok(Message::text(err))) {
+            if let Err(_disconnected) = online_user.send_text(err) {
                 // Nothing to do here.
             }
         }
@@ -179,7 +230,7 @@ async fn user_message(my_id: UserId, msg: Message, users: &Users) {
                 "type": "user.message.error",
                 "error": "message too long"
             }).to_string();
-            if let Err(_disconnected) = online_user.wsrx.send(Ok(Message::text(err))) {
+            if let Err(_disconnected) = online_user.send_text(err) {
                 // Nothing to do here.
             }
         }
@@ -206,7 +257,7 @@ async fn user_message(my_id: UserId, msg: Message, users: &Users) {
     // appears to have disconnected.
     for (&uid, online_user) in users.lock().await.iter_mut() {
         if my_id != uid {
-            if let Err(_disconnected) = online_user.wsrx.send(Ok(Message::text(new_msg.clone()))) {
+            if let Err(_disconnected) = online_user.send_text(new_msg.clone()) {
                 // The tx is disconnected, our `user_disconnected` code
                 // should be happening in another task, nothing more to
                 // do here.
@@ -225,7 +276,7 @@ async fn user_disconnected(my_id: UserId, users: &Users) {
     
     for (&uid, online_user) in users.lock().await.iter_mut() {
         if my_id != uid {
-            if let Err(_disconnected) = online_user.wsrx.send(Ok(Message::text(user_disconnect_msg.clone()))) {
+            if let Err(_disconnected) = online_user.send_text(user_disconnect_msg.clone()) {
                 // The tx is disconnected, our `user_disconnected` code
                 // should be happening in another task, nothing more to
                 // do here.

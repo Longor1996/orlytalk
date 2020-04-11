@@ -1,0 +1,10 @@
+{
+    "compilerOptions": {
+      "module": "AMD",
+      "target": "es5",
+      "sourceMap": true,
+      "outDir": "../js",
+      "rootDirs": ["../js", "../ts"],
+      "watch": true
+    }
+}

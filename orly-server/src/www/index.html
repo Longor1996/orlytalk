@@ -1,80 +1,18 @@
 <!DOCTYPE html>
 <html>
     <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
         <title>O'Rly Talk</title>
-        <style>
-            * {
-                margin: 0;
-                padding: 0;
-            }
-            html, body {
-                font-size: 16px;
-                background: black;
-            }
-            body {
-                width: 100%;
-                height: 100vh;
-                display: flex;
-                flex-flow: column nowrap;
-            }
-            
-            #chat-output {
-                flex: 1 0 auto;
-                display: flex;
-                flex-flow: column nowrap;
-                padding-bottom: 3rem;
-                
-                font-size: 1.2rem;
-                background: #333;
-                color: white;
-            }
-            
-            #chat-output .message {
-                display: block;
-                margin-top: 0.25rem;
-            }
-            #chat-output .message .user {
-                color: cornflowerblue;
-                font-weight: bold;
-            }
-            #chat-output .message .text {
-                display: inline-block;
-                white-space: pre-wrap;
-                word-break: break-all;
-            }
-            #chat-output .message .text > p {
-                display: contents;
-            }
-            #chat-output .message.status {
-                color: goldenrod;
-                font-weight: bold;
-            }
-            #chat-output .message.error {
-                margin: 0 0.25rem;
-                padding: 0.25rem;
-                background: rgb(128, 0, 0);
-                border-radius: 3px;
-                color: white;
-                font-weight: bold;
-            }
-            
-            #chat-input {
-                display: flex;
-                flex-flow: row nowrap;
-                font-size: 1.2rem;
-                position: sticky;
-                bottom: 0;
-            }
-            
-            #chat-input input {
-                flex: 1 0 auto;
-                padding: 0.25rem;
-            }
-            #chat-input button {
-                padding: 0.25rem;
-            }
-        </style>
-        <script src="/showdown.min.js"></script>
+        <link rel="stylesheet" href="./index.css">
+        <script>
+            var require = {
+                deps: ["./js/index"],
+                callback: function() {}
+            };
+        </script>
+        <script async src="./js/require.min.js"></script>
     </head>
     <body>
         <div id="chat-output">
@@ -84,117 +22,5 @@
             <input type="text" id="text" />
             <button type="button">Send</button>
         </div>
-        <script type="text/javascript">
-        var chat_output = document.querySelector("#chat-output");
-        var chat_input_txt = document.querySelector("#chat-input input");
-        var chat_input_btn = document.querySelector("#chat-input button");
-        
-        var host = location.host;
-        if(location.port !== '6991') {
-            host = "localhost:6991";
-        }
-        
-        var users = {};
-        function getUser(uuid) {
-            return users[uuid];
-        }
-        
-        var my_name = window.prompt("Name?", "Usr"+Math.floor(Math.random()*9999));
-        
-        var uri = 'ws://' + host + '/websocket?name=' + my_name;
-        var ws = new WebSocket(uri);
-        
-        var converter = new showdown.Converter();
-        function send_message(message) {
-            message = message.trim();
-            if(message.length === 0) {
-                return;
-            }
-            
-            ws.send(message);
-            show_message(my_name, converter.makeHtml(message));
-            window.scrollTo(0,document.body.scrollHeight);
-        }
-        
-        function show_message(user, message) {
-            var line = document.createElement('div');
-            line.classList.add('message');
-            line.innerHTML = "<span class=user>"+user+"</span>: <div class=text>"+message+"</div>";
-            chat_output.appendChild(line);
-        }
-        
-        function show_statemsg(message) {
-            var line = document.createElement('p');
-            line.classList.add('message', 'status');
-            line.innerHTML = message;
-            chat_output.appendChild(line);
-        }
-        
-        function show_errormsg(message) {
-            var line = document.createElement('p');
-            line.classList.add('message', 'error');
-            line.innerHTML = message;
-            chat_output.appendChild(line);
-            window.scrollTo(0,document.body.scrollHeight);
-        }
-        
-        ws.onopen = function() {
-            chat_output.innerHTML = "<p><em>Connected!</em></p>";
-            chat_input_txt.focus();
-        }
-        ws.onerror = function() {
-            show_errormsg("A WebSocket-error occurred.");
-            document.querySelector("#chat-input").style.display = 'none';
-        }
-        ws.onclose = function() {
-            show_errormsg("Connection lost.");
-            document.querySelector("#chat-input").style.display = 'none';
-        }
-        ws.onmessage = function(msg) {
-            var json = null;
-            
-            try {
-                json = JSON.parse(msg.data);
-            } catch (error) {
-                console.error(error, msg.data);
-                debugger;
-            }
-            
-            switch(json.type) {
-                case "user-list":
-                    for(var i=0, item=null; i<json.users.length, item=json.users[i];i++) {
-                        users[item.uuid] = item;
-                    }
-                    break;
-                case "user.join":
-                    users[json.user.uuid] = json.user;
-                    show_statemsg(getUser(json.user.uuid).name + " joined the chat.");
-                    break;
-                case "user.message":
-                    show_message(getUser(json.user).name, json.message);
-                    break;
-                case "user.leave":
-                    show_statemsg(getUser(json.user).name + " left the chat.");
-                    break;
-                default:
-                    show_errormsg("Unknown Packet Type: "+json.type+"<br><pre>"+msg.data+"</pre>");
-                    break;
-            }
-        };
-        
-        chat_input_txt.addEventListener('keyup', function(evt) {
-            if(evt.key !== 'Enter') return;
-            var msg = chat_input_txt.value;
-            text.value = '';
-            send_message(msg);
-        });
-        
-        chat_input_btn.onclick = function() {
-            var msg = chat_input_txt.value;
-            text.value = '';
-            send_message(msg);
-            chat_input_txt.focus();
-        };
-        </script>
     </body>
 </html>
