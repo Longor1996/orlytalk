@@ -52,10 +52,10 @@ async fn main() {
             ws.on_upgrade(move |socket| user_connected(socket, ucr, users))
     });
     
-    let index = warp::path::end().map(|| warp::reply::html(include_str!("index.html")));
+    let index = warp::path::end().map(|| warp::reply::html(include_str!("www/index.html")));
     
     let showdown = warp::path!("showdown.min.js")
-        .map(|| warp::reply::html(include_str!("showdown.min.js")));
+        .map(|| warp::reply::html(include_str!("www/showdown.min.js")));
     
     let routes = index
         .or(showdown)
