@@ -395,6 +395,7 @@ class ChannelScreen extends ContentScreen {
         box.appendChild(text_elmt);
         
         this.element.appendChild(box);
+        this.element.scrollTop = box.offsetTop;
     }
     
     activate(): void {
