@@ -4,72 +4,42 @@
   padding: 0;
 }
 
+@font-face {
+  font-family: system;
+  font-style: normal;
+  font-weight: 300;
+  font-size: 16px;
+  src: local(".SFNSText-Light"), local(".HelveticaNeueDeskInterface-Light"),
+    local(".LucidaGrandeUI"), local("Ubuntu Light"), local("Segoe UI Light"),
+    local("Roboto-Light"), local("DroidSans"), local("Tahoma");
+}
+
+@font-face {
+  font-family: "system-mono";
+  font-style: normal;
+  font-weight: 300;
+  src: local("Andale Mono"), local("Monaco"),
+    local("Lucida Console"), local("Courier New");
+}
+
 /* Root Styles */
 html,
 body {
+  font-family: system;
   font-size: 16px;
   background: black;
 }
 body {
-  width: 100%;
-  height: 100vh;
-  display: flex;
-  flex-flow: column nowrap;
-}
-
-/* Chat Styles */
-#chat-output {
-  flex: 1 0 auto;
-  display: flex;
-  flex-flow: column nowrap;
-  padding-bottom: 3rem;
-
-  font-size: 1.2rem;
-  background: #333;
-  color: white;
-}
-
-#chat-output .message {
-  display: block;
-  margin-top: 0.25rem;
-}
-#chat-output .message .user {
-  color: cornflowerblue;
-  font-weight: bold;
-}
-#chat-output .message .text {
-  display: inline-block;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-#chat-output .message .text > p {
-  display: contents;
-}
-#chat-output .message.status {
-  color: goldenrod;
-  font-weight: bold;
-}
-#chat-output .message.error {
-  margin: 0 0.25rem;
-  padding: 0.25rem;
-  background: rgb(128, 0, 0);
-  border-radius: 3px;
-  color: white;
-  font-weight: bold;
-}
-
-#chat-input {
-  display: flex;
-  flex-flow: row nowrap;
-  font-size: 1.2rem;
-  position: sticky;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
   bottom: 0;
-}
+  max-width: 100vw;
+  max-height: 100vh;
 
-#chat-input input {
-  flex: 1 0 auto;
-  padding: 0.25rem;
-}
-#chat-input button {
-  padding: 0.25rem;
+  display: flex;
+  flex-flow: column nowrap;
+  background: #202024;
+  color: white;
 }

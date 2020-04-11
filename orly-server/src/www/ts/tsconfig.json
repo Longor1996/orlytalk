@@ -1,10 +1,13 @@
 {
     "compilerOptions": {
+      "strict": true,
       "module": "AMD",
       "target": "es5",
+      "jsx": "react",
       "sourceMap": true,
-      "outDir": "../js",
-      "rootDirs": ["../js", "../ts"],
+      "rootDir": "./",
+      "rootDirs": ["../js/"],
+      "outDir": "../js/",
       "watch": true
     }
 }

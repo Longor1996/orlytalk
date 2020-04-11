@@ -8,19 +8,13 @@
         <link rel="stylesheet" href="./index.css">
         <script>
             var require = {
-                deps: ["./js/index"],
+                baseUrl: "./js/",
+                deps: ["index"],
                 callback: function() {}
             };
         </script>
         <script async src="./js/require.min.js"></script>
     </head>
     <body>
-        <div id="chat-output">
-            <p><em>Connecting...</em></p>
-        </div>
-        <div id="chat-input">
-            <input type="text" id="text" />
-            <button type="button">Send</button>
-        </div>
     </body>
 </html>

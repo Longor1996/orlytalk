@@ -36,7 +36,6 @@ struct UserConnectionRequest {
 
 #[tokio::main]
 async fn main() {
-    pretty_env_logger::init();
     println!("Hello, world!");
     
     let current_exe = std::env::current_exe().expect("Executable Location");
@@ -81,9 +80,18 @@ async fn main() {
         //.or(warp::fs::dir(working_dir.join("www")))
     ;
     
-    warp::serve(routes)
-        .run(([0, 0, 0, 0], 6991))
-        .await;
+    let serve = warp::serve(routes);
+    
+    let ip = [0, 0, 0, 0];
+    let port = 6991;
+    
+    println!("Socket-IP: {:?}", ip);
+    println!("Socket-Port: {}", port);
+    
+    let addr = (ip, port);
+    
+    // Run forever!
+    serve.run(addr).await;
 }
 
 async fn user_connected(ws: WebSocket, ucr: UserConnectionRequest, users: Users) {
@@ -114,6 +122,15 @@ async fn user_connected(ws: WebSocket, ucr: UserConnectionRequest, users: Users)
         wstx: tx
     };
     
+    let user_self_msg = json!({
+        "type": "user-info.self",
+        "user": online_user.user
+    }).to_string();
+    
+    if let Err(_disconnected) = online_user.send_text(user_self_msg) {
+        return;
+    }
+    
     let user_connect_msg = json!({
         "type": "user.join",
         "user": {
@@ -134,7 +151,7 @@ async fn user_connected(ws: WebSocket, ucr: UserConnectionRequest, users: Users)
     
     let user_list: Vec<User> = users.lock().await.iter().map(|(_, user)| user.user.clone()).collect();
     let user_list_msg = json!({
-        "type": "user-list",
+        "type": "user-info.list",
         "users": user_list
     }).to_string();
     
@@ -187,7 +204,7 @@ async fn user_connected(ws: WebSocket, ucr: UserConnectionRequest, users: Users)
             
             match msg_type {
                 "user.message" => {
-                    if let Some(msg) = obj.get("type").map(|v| v.as_str()).flatten() {
+                    if let Some(msg) = obj.get("message").map(|v| v.as_str()).flatten() {
                         user_message(my_id, msg, &users).await;
                     } else {
                         eprintln!("User message packet is invalid: No message given.");
@@ -240,13 +257,11 @@ async fn user_message(my_id: UserId, msg: &str, users: &Users) {
     println!("User #{} sent message.", my_id);
     
     use comrak::{markdown_to_html, ComrakOptions};
-    let msg = markdown_to_html(msg, &ComrakOptions::default());
-    let msg = msg.trim_start_matches("<p>");
-    let msg = msg.trim_end_matches("\\n");
-    let msg = msg.trim_end_matches("</p>");
+    let msg = markdown_to_html(&msg, &ComrakOptions::default());
     
     let new_msg = json!({
         "type": "user.message",
+        "screen_id": "default",
         "user": my_id,
         "message": msg
     }).to_string();
@@ -256,12 +271,10 @@ async fn user_message(my_id: UserId, msg: &str, users: &Users) {
     // We use `retain` instead of a for loop so that we can reap any user that
     // appears to have disconnected.
     for (&uid, online_user) in users.lock().await.iter_mut() {
-        if my_id != uid {
-            if let Err(_disconnected) = online_user.send_text(new_msg.clone()) {
-                // The tx is disconnected, our `user_disconnected` code
-                // should be happening in another task, nothing more to
-                // do here.
-            }
+        if let Err(_disconnected) = online_user.send_text(new_msg.clone()) {
+            // The tx is disconnected, our `user_disconnected` code
+            // should be happening in another task, nothing more to
+            // do here.
         }
     }
 }
