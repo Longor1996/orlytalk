@@ -1,8 +1,5 @@
 use std::collections::HashMap;
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
-};
+use std::sync::Arc;
 
 use futures::{FutureExt, StreamExt};
 use tokio::sync::{mpsc, Mutex};
@@ -10,7 +7,7 @@ use tokio::sync::{mpsc, Mutex};
 use serde::{Serialize, Deserialize};
 use serde_json::json;
 
-use rusqlite::{params, Connection, Result};
+//use rusqlite::{params, Connection, Result};
 use warp::ws::{Message, WebSocket};
 use warp::Filter;
 
@@ -68,7 +65,7 @@ async fn main() {
         .await;
 }
 
-async fn user_connected(ws: warp::ws::WebSocket, ucr: UserConnectionRequest, users: Users) {
+async fn user_connected(ws: WebSocket, ucr: UserConnectionRequest, users: Users) {
     // Use a counter to assign a new unique ID for this user.
     let my_id = uuid::Uuid::new_v4();
     
