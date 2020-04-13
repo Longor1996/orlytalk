@@ -7,7 +7,6 @@ use tokio::sync::{mpsc, Mutex};
 use serde::{Serialize, Deserialize};
 use serde_json::json;
 
-//use rusqlite::{params, Connection, Result};
 use warp::ws::{Message, WebSocket};
 use warp::{Filter, http::Response, http::response::Builder};
 
@@ -42,7 +41,21 @@ async fn main() {
     let working_dir = current_exe.parent().expect("Working Directory");
     println!("Working Directory: {:?}", working_dir);
     
-    let _conn = rusqlite::Connection::open(working_dir.join("db.sqlite")).expect("Failed to start SQLite!");
+    let conn_path = working_dir.join("db.sqlite");
+    println!("Database File: {:?}", conn_path);
+    
+    let conn = rusqlite::Connection::open(conn_path).expect("Failed to start SQLite!");
+    
+    conn.execute("
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER NOT NULL UNIQUE PRIMARY KEY AUTOINCREMENT,
+            uuid BLOB NOT NULL UNIQUE,
+            current_name TEXT NOT NULL
+        );
+    ", rusqlite::params![]).expect("SQLite Statement");
+    
+    // Clear out the cache...
+    conn.flush_prepared_statement_cache();
     
     let users = Arc::new(Mutex::new(HashMap::new()));
     let users = warp::any().map(move || users.clone());
