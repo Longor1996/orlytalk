@@ -37,16 +37,16 @@ async fn main() {
     // Clear out the cache...
     conn.flush_prepared_statement_cache();
     
-    let users = Arc::new(Mutex::new(HashMap::new()));
-    let users = warp::any().map(move || users.clone());
+    let clients = Arc::new(Mutex::new(HashMap::new()));
+    let clients = warp::any().map(move || clients.clone());
     
     let websocket = warp::path("websocket")
         .and(warp::path::end())
         .and(warp::query::<UserConnectionRequest>())
         .and(warp::ws())
-        .and(users)
+        .and(clients)
         .map(|ucr: UserConnectionRequest, ws: warp::ws::Ws, users| {
-            ws.on_upgrade(move |socket| user_connected(socket, ucr, users))
+            ws.on_upgrade(move |socket| client_connected(socket, ucr, users))
     });
     
     fn static_reply(content_type: &str, body: &'static str) -> Result<warp::http::Response<&'static str>, warp::http::Error> {

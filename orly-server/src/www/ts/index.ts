@@ -102,8 +102,8 @@ class ClientConnection {
     clients: ClientInfoCache;
     users_panel: ClientsPanel;
     
-    screens: any  = {};
-    screen: null|ContentScreen = null;
+    views: any  = {};
+    view: null|View = null;
     
     constructor(ws: WebSocket, name: string) {
         this.ws = ws;
@@ -130,13 +130,13 @@ class ClientConnection {
             
             console.log("RECV", type, json);
             
-            if(typeof json['screen_id'] !== "undefined") {
-                let screen_id = json['screen_id'];
-                let screen: null|ContentScreen = this.screens[screen_id] ?? null;
-                if(screen !== null) {
-                    screen.recv(type, json);
+            if(typeof json['view'] !== "undefined") {
+                let view_id = json['view'];
+                let view: null|View = this.views[view_id] ?? null;
+                if(view !== null) {
+                    view.recv(type, json);
                 } else {
-                    console.error("Unknown Screen: ", screen_id);
+                    console.error("Unknown Screen: ", view_id);
                 }
             } else {
                 this.recv(type, json);
@@ -145,55 +145,55 @@ class ClientConnection {
         
         this.users_panel = new ClientsPanel(this);
         
-        let default_screen = new ChannelScreen(this, 'default');
-        this.screens[default_screen.id] = default_screen;
-        this.setActiveScreen(default_screen.id);
+        let default_view = new ChannelView(this, 'default');
+        this.views[default_view.id] = default_view;
+        this.setActiveView(default_view.id);
     }
     
-    setActiveScreen(screen_id: string) {
-        if(this.screen !== null) {
-            this.screen.deactivate();
+    setActiveView(view_id: string) {
+        if(this.view !== null) {
+            this.view.deactivate();
         }
         
-        this.screen = this.screens[screen_id] ?? null;
-        if(this.screen === null) {
+        this.view = this.views[view_id] ?? null;
+        if(this.view === null) {
             return;
         }
         
-        this.screen.activate();
+        this.view.activate();
     }
     
     recv(type: string, json: any) {
         
-        if(type === "user-info.self") {
+        if(type === "client-info.self") {
             let ci = ClientInfo.from_json(json.user);
             this.clients.put(ci);
         }
         
-        if(type === "user-info.list") {
+        if(type === "client-info.list") {
             let users = json.users as Array<any>;
             for(let i=0,item=null;i<users.length,item=users[i];i++) {
                 this.clients.put(ClientInfo.from_json(item));
             }
         }
         
-        if(type === "user.join") {
+        if(type === "client.join") {
             this.clients.put(ClientInfo.from_json(json.user));
         }
         
-        if(type === "user.leave") {
+        if(type === "client.leave") {
             this.clients.del(json.user);
         }
         
     }
     
-    send(type: string, screen_id: null|string, json: any) {
+    send(type: string, view_id: null|string, json: any) {
         json.type = type;
-        if(screen_id !== null) {
-            json.screen_id = screen_id;
+        if(view_id !== null) {
+            json.view = view_id;
         }
         
-        console.log("SEND", type, screen_id, json);
+        console.log("SEND", type, view_id, json);
         this.ws.send(JSON.stringify(json));
     }
     
@@ -230,7 +230,7 @@ class ClientInfoCache {
     
     put(client: ClientInfo) {
         if(typeof this.cache[client.uuid] !== "undefined") {
-            throw new Error("User already exists: "+client.uuid);
+            throw new Error("Client already exists: "+client.uuid);
         }
         
         this.cache[client.uuid] = client;
@@ -284,7 +284,7 @@ class ClientsPanel {
     }
 }
 
-abstract class ContentScreen {
+abstract class View {
     static counter: number = 0;
     cc: ClientConnection;
     id: string;
@@ -294,8 +294,8 @@ abstract class ContentScreen {
         this.cc = cc;
         this.id = id;
         this.element = document.createElement('div');
-        this.element.id = 'screen-'+this.id;
-        this.element.className = "screen";
+        this.element.id = 'view-'+this.id;
+        this.element.className = "view";
         this.element.style.display = 'none';
         domContainer.appendChild(this.element);
     }
@@ -314,7 +314,7 @@ abstract class ContentScreen {
     };
 }
 
-class ChannelScreen extends ContentScreen {
+class ChannelView extends View {
     constructor(cc: ClientConnection, id: string) {
         super(cc, id);
         
@@ -378,7 +378,7 @@ class ChannelScreen extends ContentScreen {
         `;
         
         let style = document.createElement('style');
-        style.id = 'screen-'+this.id+'_style';
+        style.id = 'view-'+this.id+'_style';
         style.innerHTML = styles;
         document.head.appendChild(style);
         
@@ -403,7 +403,7 @@ class ChannelScreen extends ContentScreen {
                 return;
             }
             
-            this.send('user.message', {
+            this.send('channel.broadcast.formatted', {
                 message: text
             });
         });
@@ -416,7 +416,7 @@ class ChannelScreen extends ContentScreen {
     }
     
     recv(type: string, json: any) {
-        if(type === "user.message") {
+        if(type === "channel.broadcast.formatted") {
             this.show_message(json.user, json.message);
         }
     }

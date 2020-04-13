@@ -13,107 +13,147 @@ pub struct UserConnectionRequest {
     name: String
 }
 
-pub struct OnlineUser {
+pub struct OnlineClient {
     pub user: User,
     pub wstx: mpsc::UnboundedSender<Result<warp::ws::Message, warp::Error>>
 }
 
-impl OnlineUser {
-    pub fn send_text(&self, msg: String) -> Result<(), tokio::sync::mpsc::error::SendError<Result<warp::filters::ws::Message, warp::Error>>>{
+impl OnlineClient {
+    pub fn send_text<S: Into<String>>(&self, msg: S) -> Result<(), tokio::sync::mpsc::error::SendError<Result<warp::filters::ws::Message, warp::Error>>>{
         let msg = Message::text(msg);
+        let msg = Ok(msg);
+        self.wstx.send(msg)
+    }
+    
+    pub fn send_binary<S: Into<Vec<u8>>>(&self, payload: S) -> Result<(), tokio::sync::mpsc::error::SendError<Result<warp::filters::ws::Message, warp::Error>>>{
+        let msg = Message::binary(payload);
         let msg = Ok(msg);
         self.wstx.send(msg)
     }
 }
 
-pub type Users = std::sync::Arc<Mutex<std::collections::HashMap<UserId, OnlineUser>>>;
+pub type Clients = std::sync::Arc<Mutex<std::collections::HashMap<UserId, OnlineClient>>>;
 
-pub async fn user_connected(ws: WebSocket, ucr: UserConnectionRequest, users: Users) {
+pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients: Clients) {
     // Use a counter to assign a new unique ID for this user.
-    let my_id = uuid::Uuid::new_v4();
+    let client_uuid = uuid::Uuid::new_v4();
     
-    eprintln!("new chat user: {}", my_id);
+    eprintln!("[Client {}] '{}' connected!", client_uuid, &ucr.name);
     
     // Split the socket into a sender and receive of messages.
-    let (user_ws_tx, mut user_ws_rx) = ws.split();
+    let (client_send, mut client_recv) = ws.split();
     
     // Use an unbounded channel to handle buffering and flushing of messages
     // to the websocket...
+    let forward_uuid = client_uuid.clone();
     let (tx, rx) = mpsc::unbounded_channel();
-    tokio::task::spawn(rx.forward(user_ws_tx).map(|result| {
+    tokio::task::spawn(rx.forward(client_send).map(move |result| {
         if let Err(e) = result {
-            eprintln!("websocket send error: {}", e);
+            eprintln!("[Client {}] Websocket send error: {}", forward_uuid, e);
         }
     }));
     
     let user = User {
-        uuid: my_id,
+        uuid: client_uuid,
         name: ucr.name.clone(),
     };
     
-    let online_user = OnlineUser {
+    // TODO: Fully separate client and user, so a client can connect without necessarily logging in.
+    let client = OnlineClient {
         user: user,
         wstx: tx
     };
     
-    let user_self_msg = json!({
-        "type": "user-info.self",
-        "user": online_user.user
+    let login_acknowledgement_msg = json!({
+        "type": "client-info.self",
+        "user": client.user
     }).to_string();
     
-    if let Err(_disconnected) = online_user.send_text(user_self_msg) {
+    if let Err(_disconnected) = client.send_text(login_acknowledgement_msg) {
+        client_disconnected(client_uuid, &clients).await;
         return;
     }
     
-    let user_connect_msg = json!({
-        "type": "user.join",
+    client_channel_broadcast_text(&json!({
+        "type": "client.join",
         "user": {
-            "uuid": online_user.user.uuid,
-            "name": online_user.user.name
+            "uuid": client.user.uuid,
+            "name": client.user.name
         }
-    }).to_string();
+    }).to_string(), &clients).await;
     
-    for (&uid, online_user) in users.lock().await.iter_mut() {
-        if my_id != uid {
-            if let Err(_disconnected) = online_user.send_text(user_connect_msg.clone()) {
-                // The tx is disconnected, our `user_disconnected` code
-                // should be happening in another task, nothing more to
-                // do here.
-            }
-        }
-    }
-    
-    let user_list: Vec<User> = users.lock().await.iter().map(|(_, user)| user.user.clone()).collect();
+    let user_list: Vec<User> = clients.lock().await.iter().map(|(_, user)| user.user.clone()).collect();
     let user_list_msg = json!({
-        "type": "user-info.list",
+        "type": "client-info.list",
         "users": user_list
     }).to_string();
     
-    if let Err(_disconnected) = online_user.send_text(user_list_msg) {
+    if let Err(_disconnected) = client.send_text(user_list_msg) {
+        client_disconnected(client_uuid, &clients).await;
         return;
     }
     
-    // Save the sender in our list of connected users.
-    users.lock().await.insert(my_id, online_user);
+    // Save the sender in our list of connected clients.
+    clients.lock().await.insert(client_uuid, client);
     
     // Make an extra clone to give to our disconnection handler...
-    let users2 = users.clone();
+    let clients_cpy = clients.clone();
     
-    // Process messages coming from the user...
-    while let Some(result) = user_ws_rx.next().await {
+    // Process messages coming from the client...
+    while let Some(result) = client_recv.next().await {
         let msg = match result {
             Ok(msg) => msg,
             Err(e) => {
-                eprintln!("websocket error(uid={}): {}", my_id, e);
+                eprintln!("[Client {}] Websocket Error: {}", client_uuid, e);
                 break;
             }
         };
+        
+        if msg.is_binary() {
+            let msg = msg.as_bytes();
+            
+            let index: usize = match msg.iter()
+                .enumerate()
+                .find_map(|(i,b)| if *b == b':' {Some(i)} else {None}) {
+                    Some(i) => i,
+                    None => {
+                        eprintln!("[Client {}] Message invalid; could not find end of preload.", client_uuid);
+                        break;
+                    }
+                };
+            
+            let (preload, payload) = msg.split_at(index);
+            
+            let preload = match std::str::from_utf8(preload) {
+                Ok(str) => str,
+                Err(e) => {
+                    eprintln!("[Client {}] Message invalid; preload is not valid UTF-8.", client_uuid);
+                    break;
+                }
+            };
+            
+            let at_index = preload.find('@');
+            
+            if let Some(at) = at_index {
+                let (msg_type, msg_target) = preload.split_at(at);
+                eprintln!("[Client {}] Received Binary Message; type is '{}', target is '{}'.", client_uuid, msg_type, msg_target);
+                
+                if msg_type == "channel.broadcast" {
+                    client_channel_broadcast_binary(payload, &clients).await;
+                }
+            } else {
+                let msg_type = preload;
+                eprintln!("[Client {}] Received Binary Message; type is '{}'.", client_uuid, msg_type);
+            }
+            
+            continue;
+        }
         
         if let Ok(msg) = msg.to_str() {
             let json = match serde_json::from_str::<serde_json::Value>(msg) {
                 Ok(json) => json,
                 Err(err) => {
-                    eprintln!("User packet json could not parse: {}", err);
+                    eprintln!("[Client {}] Message invalid; failed to parse JSON: {}", client_uuid, err);
                     break;
                 }
             };
@@ -121,7 +161,7 @@ pub async fn user_connected(ws: WebSocket, ucr: UserConnectionRequest, users: Us
             let obj = match json {
                 serde_json::Value::Object(obj) => obj,
                 _ => {
-                    eprintln!("User packet json not object.");
+                    eprintln!("[Client {}] Message invalid; JSON root is not an object.", client_uuid);
                     break;
                 }
             };
@@ -129,40 +169,40 @@ pub async fn user_connected(ws: WebSocket, ucr: UserConnectionRequest, users: Us
             let msg_type = match obj.get("type").map(|v| v.as_str()).flatten() {
                 Some(v) => v,
                 None => {
-                    eprintln!("User packet is invalid: No type.");
+                    eprintln!("[Client {}] Message invalid; no message type given.", client_uuid);
                     break;
                 },
             };
             
-            println!("User packet: {:?}", obj);
+            println!("[Client {}] Received JSON Message: {:?}", client_uuid, obj);
             
             match msg_type {
-                "user.message" => {
+                "channel.broadcast.formatted" => {
                     if let Some(msg) = obj.get("message").map(|v| v.as_str()).flatten() {
-                        user_message(my_id, msg, &users).await;
+                        client_channel_broadcast_formatted(client_uuid, msg, &clients).await;
                     } else {
-                        eprintln!("User message packet is invalid: No message given.");
+                        eprintln!("[Client {}] User message packet is invalid: No message given.", client_uuid);
                         break;
                     }
                 },
                 _ => {
-                    eprintln!("User packet is invalid: Unknown type -> {}", msg_type);
+                    eprintln!("[Client {}] User packet is invalid: Unknown type -> {}", client_uuid, msg_type);
                     break;
                 }
             }
         }
     }
     
-    // user_ws_rx stream will keep processing as long as the user stays
+    // client_recv stream will keep processing as long as the user stays
     // connected. Once they disconnect, then...
-    user_disconnected(my_id, &users2).await;
+    client_disconnected(client_uuid, &clients_cpy).await;
 }
 
-pub async fn user_message(my_id: UserId, msg: &str, users: &Users) {
+pub async fn client_channel_broadcast_formatted(client_uuid: UserId, msg: &str, clients: &Clients) {
     
     if msg.len() == 0 {
-        println!("User #{} sent empty message.", my_id);
-        if let Some(online_user) = users.lock().await.get(&my_id) {
+        println!("[Client {}] Received empty message: Discarding!", client_uuid);
+        if let Some(online_user) = clients.lock().await.get(&client_uuid) {
             let err = json!({
                 "type": "user.message.error",
                 "error": "message too empty"
@@ -175,8 +215,8 @@ pub async fn user_message(my_id: UserId, msg: &str, users: &Users) {
     }
     
     if msg.len() > 1024 {
-        println!("User #{} sent message that is too long.", my_id);
-        if let Some(online_user) = users.lock().await.get(&my_id) {
+        println!("[Client {}] Received large message: Discarding!", client_uuid);
+        if let Some(online_user) = clients.lock().await.get(&client_uuid) {
             let err = json!({
                 "type": "user.message.error",
                 "error": "message too long"
@@ -188,42 +228,48 @@ pub async fn user_message(my_id: UserId, msg: &str, users: &Users) {
         return;
     }
     
-    println!("User #{} sent message.", my_id);
+    println!("[Client {}] Received message: Broadcasting...", client_uuid);
     
     use comrak::{markdown_to_html, ComrakOptions};
     let msg = markdown_to_html(&msg, &ComrakOptions::default());
     
     let new_msg = json!({
-        "type": "user.message",
-        "screen_id": "default",
-        "user": my_id,
+        "type": "channel.broadcast.formatted",
+        "view": "default",
+        "user": client_uuid,
         "message": msg
     }).to_string();
     
-    // New message from this user, send it to everyone else (except same uid)...
-    //
-    // We use `retain` instead of a for loop so that we can reap any user that
-    // appears to have disconnected.
-    for (&uid, online_user) in users.lock().await.iter_mut() {
-        if let Err(_disconnected) = online_user.send_text(new_msg.clone()) {
-            // The tx is disconnected, our `user_disconnected` code
-            // should be happening in another task, nothing more to
-            // do here.
+    client_channel_broadcast_text(&new_msg, &clients).await;
+}
+
+pub async fn client_channel_broadcast_text(msg: &str, clients: &Clients) {
+    for (_uid, client) in clients.lock().await.iter_mut() {
+        if let Err(_disconnected) = client.send_text(msg) {
+            // Nothing to do here.
         }
     }
 }
 
-pub async fn user_disconnected(my_id: UserId, users: &Users) {
-    eprintln!("good bye user: {}", my_id);
+pub async fn client_channel_broadcast_binary(payload: &[u8], clients: &Clients) {
+    for (_uid, client) in clients.lock().await.iter_mut() {
+        if let Err(_disconnected) = client.send_binary(payload) {
+            // Nothing to do here.
+        }
+    }
+}
+
+pub async fn client_disconnected(my_id: UserId, clients: &Clients) {
+    eprintln!("[Client {}] Disconnected!", my_id);
     
-    let user_disconnect_msg = json!({
-        "type": "user.leave",
+    let client_disconnect_msg = json!({
+        "type": "client.leave",
         "user": my_id
     }).to_string();
     
-    for (&uid, online_user) in users.lock().await.iter_mut() {
+    for (&uid, client) in clients.lock().await.iter_mut() {
         if my_id != uid {
-            if let Err(_disconnected) = online_user.send_text(user_disconnect_msg.clone()) {
+            if let Err(_disconnected) = client.send_text(client_disconnect_msg.clone()) {
                 // The tx is disconnected, our `user_disconnected` code
                 // should be happening in another task, nothing more to
                 // do here.
@@ -232,5 +278,5 @@ pub async fn user_disconnected(my_id: UserId, users: &Users) {
     }
 
     // Stream closed up, so remove from the user list
-    users.lock().await.remove(&my_id);
+    clients.lock().await.remove(&my_id);
 }
