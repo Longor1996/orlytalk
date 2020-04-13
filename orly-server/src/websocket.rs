@@ -180,10 +180,14 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
                 "channel.broadcast.formatted" => {
                     if let Some(msg) = obj.get("message").map(|v| v.as_str()).flatten() {
                         client_channel_broadcast_formatted(client_uuid, msg, &clients).await;
+                        continue;
                     } else {
                         eprintln!("[Client {}] User message packet is invalid: No message given.", client_uuid);
                         break;
                     }
+                },
+                "channel.broadcast" => {
+                    client_channel_broadcast_text(msg, &clients).await;
                 },
                 _ => {
                     eprintln!("[Client {}] User packet is invalid: Unknown type -> {}", client_uuid, msg_type);
