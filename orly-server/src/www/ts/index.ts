@@ -100,13 +100,14 @@ class LoginScreen {
 class ClientConnection {
     ws: WebSocket;
     clients: ClientInfoCache;
+    users_panel: ClientsPanel;
     
     screens: any  = {};
     screen: null|ContentScreen = null;
     
     constructor(ws: WebSocket, name: string) {
         this.ws = ws;
-        this.clients = new ClientInfoCache();
+        this.clients = new ClientInfoCache(this);
         
         this.ws.onerror = (event) => {
             console.error(event);
@@ -141,6 +142,8 @@ class ClientConnection {
                 this.recv(type, json);
             }
         };
+        
+        this.users_panel = new ClientsPanel(this);
         
         let default_screen = new ChannelScreen(this, 'default');
         this.screens[default_screen.id] = default_screen;
@@ -178,6 +181,10 @@ class ClientConnection {
             this.clients.put(ClientInfo.from_json(json.user));
         }
         
+        if(type === "user.leave") {
+            this.clients.del(json.user);
+        }
+        
     }
     
     send(type: string, screen_id: null|string, json: any) {
@@ -213,14 +220,67 @@ class ClientInfo {
 }
 
 class ClientInfoCache {
-    cache: any = {};
+    cc: ClientConnection;
+    cache: any;
+    
+    constructor(cc: ClientConnection) {
+        this.cc = cc;
+        this.cache = {};
+    }
     
     put(client: ClientInfo) {
+        if(typeof this.cache[client.uuid] !== "undefined") {
+            throw new Error("User already exists: "+client.uuid);
+        }
+        
         this.cache[client.uuid] = client;
+        this.cc.users_panel.update(client.uuid, 'insert');
     }
     
     get(uuid: string): null|ClientInfo {
         return this.cache[uuid] ?? null;
+    }
+    
+    del(uuid: string) {
+        this.cc.users_panel.update(uuid, 'delete');
+        delete this.cache[uuid];
+    }
+}
+
+class ClientsPanel {
+    cc: ClientConnection;
+    element: HTMLElement;
+    
+    constructor(cc: ClientConnection) {
+        this.cc = cc;
+        
+        this.element = document.createElement('div');
+        this.element.className = "users-panel";
+        this.element.style.display = "flex";
+        this.element.style.flexFlow = "column nowrap";
+        this.element.style.background = "#333";
+        domContainer.appendChild(this.element);
+    }
+    
+    update(uuid: string, mode: string) {
+        
+        if(mode === "insert") {
+            console.log("Adding new user to panel: ", uuid);
+            let box = document.createElement('div');
+            box.className = "users-panel_user";
+            box.style.display = "inline-block";
+            box.style.margin = "0.25rem";
+            box.setAttribute('data-uuid', uuid);
+            box.innerHTML = this.cc.clients.get(uuid)?.name ?? "Guest";
+            this.element.appendChild(box);
+            return;
+        }
+        
+        if(mode === "delete") {
+            console.log("Removing user from panel: ", uuid);
+            this.element.querySelector(`.users-panel_user[data-uuid="${uuid}"]`)?.remove();
+        }
+        
     }
 }
 
@@ -235,6 +295,7 @@ abstract class ContentScreen {
         this.id = id;
         this.element = document.createElement('div');
         this.element.id = 'screen-'+this.id;
+        this.element.className = "screen";
         this.element.style.display = 'none';
         domContainer.appendChild(this.element);
     }
