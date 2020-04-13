@@ -119,27 +119,32 @@ class ClientConnection {
         
         this.ws.onmessage = (event) => {
             // nothing to do here
-            let text = event.data;
-            let json = JSON.parse(text);
-            let type = json['type'] ?? null;
+            let message_data = event.data;
             
-            if(type === null) {
-                console.error("Message has no type: ", json);
-                return;
-            }
-            
-            console.log("RECV", type, json);
-            
-            if(typeof json['view'] !== "undefined") {
-                let view_id = json['view'];
-                let view: null|View = this.views[view_id] ?? null;
-                if(view !== null) {
-                    view.recv(type, json);
+            if (typeof message_data === "string") {
+                let json = JSON.parse(message_data);
+                let type = json['type'] ?? null;
+                
+                if(type === null) {
+                    console.error("Message has no type: ", json);
+                    return;
+                }
+                
+                console.log("RECV-TXT: ", type, json);
+                
+                if(typeof json['view'] !== "undefined") {
+                    let view_id = json['view'];
+                    let view: null|View = this.views[view_id] ?? null;
+                    if(view !== null) {
+                        view.recv(type, json);
+                    } else {
+                        console.error("Unknown Screen: ", view_id);
+                    }
                 } else {
-                    console.error("Unknown Screen: ", view_id);
+                    this.recv(type, json);
                 }
             } else {
-                this.recv(type, json);
+                console.warn("RECV-BIN: ", message_data);
             }
         };
         
