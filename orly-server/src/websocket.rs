@@ -45,7 +45,7 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
     
     // Use an unbounded channel to handle buffering and flushing of messages
     // to the websocket...
-    let forward_uuid = client_uuid.clone();
+    let forward_uuid = client_uuid;
     let (tx, rx) = mpsc::unbounded_channel();
     tokio::task::spawn(rx.forward(client_send).map(move |result| {
         if let Err(e) = result {
@@ -60,7 +60,7 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
     
     // TODO: Fully separate client and user, so a client can connect without necessarily logging in.
     let client = OnlineClient {
-        user: user,
+        user,
         wstx: tx
     };
     
@@ -127,7 +127,7 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
             let preload = match std::str::from_utf8(preload) {
                 Ok(str) => str,
                 Err(e) => {
-                    eprintln!("[Client {}] Message invalid; preload is not valid UTF-8.", client_uuid);
+                    eprintln!("[Client {}] Message invalid; preload is not valid UTF-8: {}", client_uuid, e);
                     break;
                 }
             };
@@ -204,7 +204,7 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
 
 pub async fn client_channel_broadcast_formatted(client_uuid: UserId, msg: &str, clients: &Clients) {
     
-    if msg.len() == 0 {
+    if msg.is_empty() {
         println!("[Client {}] Received empty message: Discarding!", client_uuid);
         if let Some(online_user) = clients.lock().await.get(&client_uuid) {
             let err = json!({
