@@ -35,6 +35,8 @@ class LoginScreen {
         input.addEventListener('keyup', (evt) => {
             if(evt.key !== 'Enter') return;
             button.click();
+            evt.preventDefault();
+            evt.stopImmediatePropagation();
         });
         
         var button = document.createElement('button');
