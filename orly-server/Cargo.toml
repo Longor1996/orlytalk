@@ -11,12 +11,15 @@ edition = "2018"
 # cdrs = "2.3.1"
 # elasticsearch = "7.6.1-alpha.1"
 
-rusqlite = {version = "0.22.0", features = ["bundled"]}
-tokio = { version = "0.2", features = ["macros"] }
-futures = "0.3.4"
-warp = "0.2.2"
+rusqlite = {version = "0.24.0", features = ["bundled"]}
+tokio = { version = "0.2", features = ["macros", "fs", "sync", "time"] }
+futures = "0.3.5"
+warp = "0.2.5"
 
 uuid = { version = "0.8", features = ["serde", "v4"] }
-serde = {version = "1.0.106", features = ["derive"]}
-serde_json = "1.0.51"
-comrak = {version = "0.7.0", default-features = false}
+serde = {version = "1.0.116", features = ["derive"]}
+serde_json = "1.0.57"
+comrak = {version = "0.8.2", default-features = false}
+
+[dev-dependencies]
+walkdir = "2.3.1"
