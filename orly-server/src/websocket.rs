@@ -4,7 +4,9 @@ use serde::{Serialize, Deserialize};
 use serde_json::json;
 
 use futures::{FutureExt, StreamExt};
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::mpsc;
+
+use dashmap::DashMap;
 
 use crate::{UserId, User};
 
@@ -32,7 +34,7 @@ impl OnlineClient {
     }
 }
 
-pub type Clients = std::sync::Arc<Mutex<std::collections::HashMap<UserId, OnlineClient>>>;
+pub type Clients = std::sync::Arc<DashMap<UserId, OnlineClient>>;
 
 pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients: Clients) {
     // Use a counter to assign a new unique ID for this user.
@@ -82,7 +84,7 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
         }
     }).to_string(), &clients).await;
     
-    let user_list: Vec<User> = clients.lock().await.iter().map(|(_, user)| user.user.clone()).collect();
+    let user_list: Vec<User> = clients.iter().map(|multiref| multiref.value().user.clone()).collect();
     let user_list_msg = json!({
         "type": "client-info.list",
         "users": user_list
@@ -94,7 +96,7 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
     }
     
     // Save the sender in our list of connected clients.
-    clients.lock().await.insert(client_uuid, client);
+    clients.insert(client_uuid, client);
     
     // Make an extra clone to give to our disconnection handler...
     let clients_cpy = clients.clone();
@@ -206,7 +208,7 @@ pub async fn client_channel_broadcast_formatted(client_uuid: UserId, msg: &str, 
     
     if msg.is_empty() {
         println!("[Client {}] Received empty message: Discarding!", client_uuid);
-        if let Some(online_user) = clients.lock().await.get(&client_uuid) {
+        if let Some(online_user) = clients.get(&client_uuid) {
             let err = json!({
                 "type": "user.message.error",
                 "error": "message too empty"
@@ -220,7 +222,7 @@ pub async fn client_channel_broadcast_formatted(client_uuid: UserId, msg: &str, 
     
     if msg.len() > 1024 {
         println!("[Client {}] Received large message: Discarding!", client_uuid);
-        if let Some(online_user) = clients.lock().await.get(&client_uuid) {
+        if let Some(online_user) = clients.get(&client_uuid) {
             let err = json!({
                 "type": "user.message.error",
                 "error": "message too long"
@@ -248,16 +250,16 @@ pub async fn client_channel_broadcast_formatted(client_uuid: UserId, msg: &str, 
 }
 
 pub async fn client_channel_broadcast_text(msg: &str, clients: &Clients) {
-    for (_uid, client) in clients.lock().await.iter_mut() {
-        if let Err(_disconnected) = client.send_text(msg) {
+    for multiref in clients.iter_mut() {
+        if let Err(_disconnected) = multiref.value().send_text(msg) {
             // Nothing to do here.
         }
     }
 }
 
 pub async fn client_channel_broadcast_binary(payload: &[u8], clients: &Clients) {
-    for (_uid, client) in clients.lock().await.iter_mut() {
-        if let Err(_disconnected) = client.send_binary(payload) {
+    for multiref in clients.iter_mut() {
+        if let Err(_disconnected) = multiref.value().send_binary(payload) {
             // Nothing to do here.
         }
     }
@@ -271,9 +273,9 @@ pub async fn client_disconnected(my_id: UserId, clients: &Clients) {
         "user": my_id
     }).to_string();
     
-    for (&uid, client) in clients.lock().await.iter_mut() {
-        if my_id != uid {
-            if let Err(_disconnected) = client.send_text(client_disconnect_msg.clone()) {
+    for multiref in clients.iter_mut() {
+        if &my_id != multiref.key() {
+            if let Err(_disconnected) = multiref.value().send_text(client_disconnect_msg.clone()) {
                 // The tx is disconnected, our `user_disconnected` code
                 // should be happening in another task, nothing more to
                 // do here.
@@ -282,5 +284,5 @@ pub async fn client_disconnected(my_id: UserId, clients: &Clients) {
     }
 
     // Stream closed up, so remove from the user list
-    clients.lock().await.remove(&my_id);
+    clients.remove(&my_id);
 }

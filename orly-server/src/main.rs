@@ -1,11 +1,8 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
-use tokio::sync::Mutex;
-
-use serde::{Serialize, Deserialize};
-
 use warp::{Filter, http::Response};
+
+use dashmap::DashMap;
 
 mod user;
 use user::*;
@@ -37,14 +34,14 @@ async fn main() {
     // Clear out the cache...
     conn.flush_prepared_statement_cache();
     
-    let clients = Arc::new(Mutex::new(HashMap::new()));
-    let clients = warp::any().map(move || clients.clone());
+    let clients_map = Arc::new(DashMap::new());
+    let clients_ref = warp::any().map(move || clients_map.clone());
     
     let websocket = warp::path("websocket")
         .and(warp::path::end())
         .and(warp::query::<UserConnectionRequest>())
         .and(warp::ws())
-        .and(clients)
+        .and(clients_ref)
         .map(|ucr: UserConnectionRequest, ws: warp::ws::Ws, users| {
             ws.on_upgrade(move |socket| client_connected(socket, ucr, users))
     });
