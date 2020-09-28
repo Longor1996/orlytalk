@@ -58,17 +58,26 @@ class LoginScreen {
     tryLogin(name: string) {
         this.setLockState(true);
         
+        // We can't assume the server has a certificate.
+        let secure   = false;
+        
         // If we don't have a hostname, use localhost and pray for the best.
-        var hostname = window.location.hostname || 'localhost';
-        var port     = 6991; // default port
+        let hostname = window.location.hostname || 'localhost';
+        let port     = window.location.port; // default port
+        
+        // If client seems to be running over https, use secure connection.
+        if((window.location.protocol||'http:') === 'https:') {
+            secure = true;
+        }
         
         // This is for local testing without server-recompilation.
         if((window.location.protocol||'file:') === 'file:') {
             hostname = 'localhost';
+            port = '6991';
         }
         
-        const HOST = hostname + ':' + port;
-        const URI = 'ws://' + HOST + '/websocket?name=' + name;
+        const HOST = hostname + (port ? '' : ':' + port);
+        const URI = (secure ? 'wss://' : 'ws://') + HOST + '/websocket?name=' + name;
         
         console.log("Attempting to connect to server <", HOST, "> trough the URI: ", URI);
         let ws = new WebSocket(URI);
