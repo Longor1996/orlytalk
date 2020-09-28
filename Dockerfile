@@ -1,7 +1,7 @@
 FROM rust as builder
 WORKDIR /usr/src/orlytalk
 COPY . .
-RUN cargo install --path .
+RUN cargo install --path orly-server
 
 FROM debian:buster-slim
 # RUN apt-get update && apt-get install -y extra-runtime-dependencies && rm -rf /var/lib/apt/lists/*
