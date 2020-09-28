@@ -1,3 +1,7 @@
+pub mod built_info {
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}
+
 use std::sync::Arc;
 
 use warp::{Filter, http::Response};
@@ -13,6 +17,17 @@ use websocket::*;
 #[tokio::main]
 async fn main() {
     println!("Hello, world!");
+    
+    println!(
+        "OrlyTalk-Server:\n- Version {}\n- Built for {}\n- By {}\n- In {}-mode\n- {}{:?}.",
+        built_info::PKG_VERSION,
+        built_info::TARGET,
+        built_info::RUSTC_VERSION,
+        if built_info::DEBUG {"debug"} else {"release"},
+        built_info::GIT_DIRTY.map(|b| if b {"Based on commit "} else {"From commit "}).unwrap_or("From commit "),
+        built_info::GIT_COMMIT_HASH.unwrap_or("[HEAD]"),
+    );
+    
     dotenv::dotenv().ok();
     
     let current_exe = std::env::current_exe().expect("Executable Location");

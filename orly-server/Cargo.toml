@@ -3,8 +3,7 @@ name = "orly-server"
 version = "0.0.6"
 authors = ["Longor1996 <lalongok@gmail.com>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+build = "build.rs"
 
 [dependencies]
 
@@ -26,3 +25,6 @@ comrak = {version = "0.8.2", default-features = false}
 
 [dev-dependencies]
 walkdir = "2.3.1"
+
+[build-dependencies]
+built = {version = "0.4.3", features = ["git2", "semver"]}
