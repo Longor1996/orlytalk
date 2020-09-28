@@ -58,9 +58,20 @@ class LoginScreen {
     tryLogin(name: string) {
         this.setLockState(true);
         
-        const HOST = location.port !== '6991' ? "localhost:6991" : location.host;
-        let uri = 'ws://' + HOST + '/websocket?name=' + name;
-        let ws = new WebSocket(uri);
+        // If we don't have a hostname, use localhost and pray for the best.
+        var hostname = window.location.hostname || 'localhost';
+        var port     = 6991; // default port
+        
+        // This is for local testing without server-recompilation.
+        if((window.location.protocol||'file:') === 'file:') {
+            hostname = 'localhost';
+        }
+        
+        const HOST = hostname + ':' + port;
+        const URI = 'ws://' + HOST + '/websocket?name=' + name;
+        
+        console.log("Attempting to connect to server <", HOST, "> trough the URI: ", URI);
+        let ws = new WebSocket(URI);
         
         ws.onopen = (event) => {
             this.destroy();
