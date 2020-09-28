@@ -46,22 +46,24 @@ async fn main() {
             ws.on_upgrade(move |socket| client_connected(socket, ucr, users))
     });
     
-    fn static_reply(content_type: &str, body: &'static str) -> Result<warp::http::Response<&'static str>, warp::http::Error> {
+    fn static_reply(content_type: &str, body: &'static [u8]) -> Result<warp::http::Response<&'static [u8]>, warp::http::Error> {
         Response::builder()
             .header("Content-type", content_type)
             .body(body)
     }
     
-    let index_html = warp::path::end().map(|| static_reply("text/html", include_str!("www/index.html")));
-    let index_css = warp::path!("index.css").map(|| static_reply("text/css", include_str!("www/index.css")));
+    let index_html = warp::path::end().map(|| static_reply("text/html", include_bytes!("www/index.html")));
+    let index_css = warp::path!("index.css").map(|| static_reply("text/css", include_bytes!("www/index.css")));
+    let favicon   = warp::path!("favicon.ico").map(|| static_reply("image/ico", include_bytes!("www/favicon.ico")));
     
-    let js_require = warp::path!("js" / "require.min.js").map(|| static_reply("application/javascript", include_str!("www/js/require.min.js")));
-    let js_showdown = warp::path!("js" / "showdown.min.js").map(|| static_reply("application/javascript", include_str!("www/js/showdown.min.js")));
-    let js_index = warp::path!("js" / "index.js").map(|| static_reply("application/javascript", include_str!("www/js/index.js")));
-    let js_index_map = warp::path!("js" / "index.js.map").map(|| static_reply("application/javascript", include_str!("www/js/index.js.map")));
+    let js_require   = warp::path!("js" / "require.js").map(|| static_reply("application/javascript", include_bytes!("www/js/require.js")));
+    let js_showdown  = warp::path!("js" / "showdown.js").map(|| static_reply("application/javascript", include_bytes!("www/js/showdown.js")));
+    let js_index     = warp::path!("js" / "index.js").map(|| static_reply("application/javascript", include_bytes!("www/js/index.js")));
+    let js_index_map = warp::path!("js" / "index.js.map").map(|| static_reply("application/javascript", include_bytes!("www/js/index.js.map")));
     
     let routes = index_html
         .or(index_css)
+        .or(favicon)
         .or(js_require)
         .or(js_showdown)
         .or(js_index)

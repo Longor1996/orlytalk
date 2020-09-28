@@ -9,11 +9,13 @@
         <script>
             var require = {
                 baseUrl: "./js/",
-                deps: ["index"],
+                deps: [
+                    'showdown'
+                ],
                 callback: function() {}
             };
         </script>
-        <script async src="./js/require.min.js"></script>
+        <script async src="./js/require.js" data-main="index.js"></script>
     </head>
     <body>
     </body>
