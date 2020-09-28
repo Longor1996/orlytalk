@@ -1,0 +1,23 @@
+name: Build Docker Image
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Login to Github Container Registry
+        run: echo ${{ secrets.GHCR_PAT }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin 
+
+      - name: Build Docker image
+        run: docker build . -t ghcr.io/sharknoon/orlytalk
+
+      - name: Push Image to Registry
+        run: docker push ghcr.io/sharknoon/orlytalk
