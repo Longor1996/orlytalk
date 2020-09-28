@@ -1,6 +1,6 @@
 FROM node as ts-builder
 WORKDIR /usr/src/orlytalk
-RUN npm install typescript
+RUN npm install -g typescript
 COPY . .
 RUN tsc 
 
