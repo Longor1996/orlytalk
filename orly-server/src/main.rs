@@ -16,19 +16,17 @@ use websocket::*;
 
 #[tokio::main]
 async fn main() {
-    println!("Hello, world!");
-    
-    println!(
-        "OrlyTalk-Server:\n- Version {}\n- Built for {}\n- By {}\n- In {}-mode\n- {}{:?}.",
-        built_info::PKG_VERSION,
-        built_info::TARGET,
-        built_info::RUSTC_VERSION,
-        if built_info::DEBUG {"debug"} else {"release"},
-        built_info::GIT_DIRTY.map(|b| if b {"Based on commit "} else {"From commit "}).unwrap_or("From commit "),
-        built_info::GIT_COMMIT_HASH.unwrap_or("[HEAD]"),
-    );
-    
     dotenv::dotenv().ok();
+    
+    println!("OrlyTalk Server");
+    println!("- Version: {}", built_info::PKG_VERSION);
+    println!("- For:     {}", built_info::TARGET);
+    println!("- By:      {}", built_info::RUSTC_VERSION);
+    println!("- In:      {}-mode", if built_info::DEBUG {"debug"} else {"release"});
+    println!("- {}: {}",
+        built_info::GIT_DIRTY.map(|b| if b {"Based on commit"} else {"From commit"}).unwrap_or("From commit"),
+        built_info::GIT_COMMIT_HASH.unwrap_or("[HEAD]")
+    );
     
     let current_exe = std::env::current_exe().expect("Executable Location");
     let working_dir = current_exe.parent().expect("Working Directory");
@@ -36,7 +34,7 @@ async fn main() {
     
     let db_file_name = std::env::var("ORLYTALK_SQLITE_FILE").unwrap_or_else(|_e| "db.sqlite".to_string());
     let db_file_path = working_dir.join(db_file_name);
-    println!("Database File: {:?}", db_file_path);
+    println!("Database File:     {:?}", db_file_path);
     
     let db_conn = rusqlite::Connection::open(db_file_path).expect("Failed to start SQLite!");
     
@@ -98,11 +96,14 @@ async fn main() {
     let host: std::net::IpAddr = std::env::var("ORLYTALK_HOST").unwrap_or_else(|_e| "0.0.0.0".to_string()).parse().expect("Valid host");
     let port: u16              = std::env::var("ORLYTALK_PORT").unwrap_or_else(|_e| "6991".to_string()).parse().expect("Valid port number");
     
-    println!("Socket-IP: {:?}", host);
+    println!("Socket-Host: {:?}", host);
     println!("Socket-Port: {}", port);
     
     let addr = (host, port);
     
     // Run forever!
+    println!();
+    println!("Now running... (Press CTRL+C to kill the process!)");
+    println!();
     serve.run(addr).await;
 }
