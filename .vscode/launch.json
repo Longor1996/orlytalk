@@ -1,0 +1,15 @@
+{
+    "version": "0.1.0",
+    "command": "cargo",
+    "tasks": [
+        {
+           "type": "cargo",
+           "taskName": "run server",
+           "args": [
+               "orlytalk-server"
+               // More args
+           ],
+           "showOutput": "always"
+        }
+    ]
+}
