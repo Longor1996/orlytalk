@@ -117,5 +117,4 @@ Cargo.lock
 
 # End of https://www.gitignore.io/api/visualstudiocode
 
-orly-server/src/www/js/index.js
-orly-server/src/www/js/index.js.map
+orly-server/src/www/js/*
