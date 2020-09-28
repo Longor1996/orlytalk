@@ -2,7 +2,7 @@ FROM node as ts-builder
 WORKDIR /usr/src/orlytalk
 RUN npm install -g typescript
 COPY . .
-RUN tsc 
+RUN tsc -p orly-server/src/www/ts
 
 FROM rust as rust-builder
 WORKDIR /usr/src/orlytalk
