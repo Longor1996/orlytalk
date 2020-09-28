@@ -11,5 +11,5 @@ RUN cargo install --path orly-server
 
 FROM debian:buster-slim
 # RUN apt-get update && apt-get install -y extra-runtime-dependencies && rm -rf /var/lib/apt/lists/*
-COPY --from=rust-builder /usr/local/cargo/bin/orlytalk/orly-server /usr/local/bin/orlytalk/orly-server
+COPY --from=rust-builder /usr/local/cargo/bin/orlytalk/orly-server /usr/local/bin/orly-server
 CMD ["orly-server"]
