@@ -1,13 +1,14 @@
 {
-  "compilerOptions": {
-    "incremental": true,
-    "strict": true,
-    "allowJs": true,
+	"compilerOptions": {
+		"moduleResolution": "Node",
+		"incremental": true,
+		"strict": true,
+		"allowJs": true,
 		"module": "UMD",
 		"target": "es5",
 		"jsx": "react",
 		"sourceMap": true,
-    "rootDirs": ["../ts/"],
+		"rootDirs": ["../ts/"],
 		"outDir": "../js/"
 	}
 }
