@@ -54,6 +54,7 @@ async fn main() {
     
     let index_html = warp::path::end().map(|| static_reply("text/html", include_bytes!("www/index.html")));
     let index_css = warp::path!("index.css").map(|| static_reply("text/css", include_bytes!("www/index.css")));
+    let favicon   = warp::path!("favicon.ico").map(|| static_reply("image/ico", include_bytes!("www/favicon.ico")));
     
     let js_require   = warp::path!("js" / "require.js").map(|| static_reply("application/javascript", include_bytes!("www/js/require.js")));
     let js_showdown  = warp::path!("js" / "showdown.js").map(|| static_reply("application/javascript", include_bytes!("www/js/showdown.js")));
@@ -62,6 +63,7 @@ async fn main() {
     
     let routes = index_html
         .or(index_css)
+        .or(favicon)
         .or(js_require)
         .or(js_showdown)
         .or(js_index)
