@@ -40,4 +40,11 @@ Then to build the project:
 
 ## Docker
 
-> TODO: Write documentation for Dockerfile.
+To build and run O'Rly Talk for Docker on Linux-based systems, run the following commands:
+
+```
+docker build . -t orlytalk
+docker run -p 6991:6991 orlytalk
+```
+
+You can then open [localhost:6991](http://localhost:6991) in your browser of choice.
