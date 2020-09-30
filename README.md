@@ -1,3 +1,5 @@
+![Build Docker Image](https://github.com/Longor1996/orlytalk/workflows/Build%20Docker%20Image/badge.svg)
+
 # O'Rly Talk
 
 Under construction!
