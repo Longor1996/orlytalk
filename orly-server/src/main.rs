@@ -32,11 +32,18 @@ async fn main() {
     let working_dir = current_exe.parent().expect("Working Directory");
     println!("Working Directory: {:?}", working_dir);
     
-    let db_file_name = std::env::var("ORLYTALK_SQLITE_FILE").unwrap_or_else(|_e| "db.sqlite".to_string());
-    let db_file_path = working_dir.join(db_file_name);
-    println!("Database File:     {:?}", db_file_path);
+    let db_file_name = std::env::var("ORLYTALK_SQLITE_FILE").unwrap_or_else(|_e| "./db.sqlite".to_string());
+    let db_file_path = std::path::PathBuf::from(db_file_name);
     
-    let db_conn = rusqlite::Connection::open(db_file_path).expect("Failed to start SQLite!");
+    println!("Database File:     {:?}", db_file_path);
+    println!("Database File:     {:?}", db_file_path.canonicalize());
+    
+    // If the database path has a parent directory, ensure it exists.
+    if let Some(parent_dir) = db_file_path.parent() {
+        std::fs::create_dir_all(parent_dir).expect("Could not create all directories for database");
+    }
+    
+    let db_conn = rusqlite::Connection::open(&db_file_path).expect("Failed to start SQLite!");
     
     db_conn.execute("
         CREATE TABLE IF NOT EXISTS users (
