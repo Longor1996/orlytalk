@@ -1,0 +1,40 @@
+name: Build Docker Image
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - v*
+env:
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Log into GitHub Container Registry
+        run: echo "${{ secrets.CR_PAT }}" | docker login https://ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build image
+        # Build docker image with lowercase repository-owner/repository-name
+        run: docker build . -t $(echo $IMAGE_NAME | tr '[A-Z]' '[a-z]')
+
+      - name: Push image to GitHub Container Registry
+        run: |
+          # Change all uppercase to lowercase
+          IMAGE_NAME=$(echo $IMAGE_NAME | tr '[A-Z]' '[a-z]')
+          
+          # Create Image ID with url in front of it
+          IMAGE_ID=ghcr.io/$IMAGE_NAME
+          # Strip git ref prefix from version
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+          # Strip "v" prefix from tag name
+          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
+          # Use Docker `latest` tag convention
+          [ "$VERSION" == "master" ] && VERSION=latest
+          docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
+          docker push $IMAGE_ID:$VERSION
