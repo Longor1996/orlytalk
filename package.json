@@ -9,7 +9,7 @@
   },
   "directories": {},
   "scripts": {
-    "watch": "parcel       --no-content-hash ./orly-client-web/src/index.html -d ./orly-client-web/out",
+    "watch": "parcel ./orly-client-web/src/index.html -d ./target/debug/www",
     "build": "parcel build --no-content-hash ./orly-client-web/src/index.html -d ./orly-client-web/out"
   },
   "dependencies": {
