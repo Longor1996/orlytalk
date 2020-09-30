@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate lazy_static;
+
 pub mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
@@ -59,7 +62,7 @@ async fn main() {
     let db_conn = Arc::new(tokio::sync::Mutex::from(db_conn));
     let db_conn = warp::any().map(move || db_conn.clone());
     
-    let clients_map = Arc::new(DashMap::new());
+    let clients_map: Clients = Arc::new(DashMap::new());
     let clients_ref = warp::any().map(move || clients_map.clone());
     
     let websocket = warp::path("websocket")
@@ -73,7 +76,7 @@ async fn main() {
     });
     
     let www = warp::fs::dir(working_dir.join("orly-server-www"));
-    let routes = www.or(websocket);
+    let routes = websocket.or(www);
     
     let serve = warp::serve(routes);
     

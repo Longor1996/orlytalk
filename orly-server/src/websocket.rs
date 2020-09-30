@@ -8,15 +8,18 @@ use tokio::sync::mpsc;
 
 use dashmap::DashMap;
 
-use crate::{UserId, User};
+use crate::User;
+pub type ClientId = u64;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct UserConnectionRequest {
-    name: String
-}
+pub struct UserConnectionRequest {}
 
+#[derive(Serialize, Debug)]
 pub struct OnlineClient {
-    pub user: User,
+    pub id: ClientId,
+    pub user: Option<User>,
+    
+    #[serde(skip)]
     pub wstx: mpsc::UnboundedSender<Result<warp::ws::Message, warp::Error>>
 }
 
@@ -34,69 +37,71 @@ impl OnlineClient {
     }
 }
 
-pub type Clients = std::sync::Arc<DashMap<UserId, OnlineClient>>;
+pub type Clients = std::sync::Arc<DashMap<ClientId, OnlineClient>>;
 
 pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients: Clients) {
-    // Use a counter to assign a new unique ID for this user.
-    let client_uuid = uuid::Uuid::new_v4();
+    use std::sync::atomic::AtomicU64;
+    use std::sync::atomic::Ordering;
+    lazy_static! {
+        static ref CLIENT_ID_AUTO_INCREMENT: AtomicU64 = {
+            AtomicU64::new(0)
+        };
+    };
     
-    eprintln!("[Client {}] '{}' connected!", client_uuid, &ucr.name);
+    // Use a counter to assign a new unique ID for this user.
+    let client_id = CLIENT_ID_AUTO_INCREMENT.fetch_add(1, Ordering::Relaxed);
+    
+    eprintln!("[Client {}] Connected!", &client_id);
     
     // Split the socket into a sender and receive of messages.
     let (client_send, mut client_recv) = ws.split();
     
     // Use an unbounded channel to handle buffering and flushing of messages
     // to the websocket...
-    let forward_uuid = client_uuid;
+    let forward_id = client_id;
     let (tx, rx) = mpsc::unbounded_channel();
     tokio::task::spawn(rx.forward(client_send).map(move |result| {
         if let Err(e) = result {
-            eprintln!("[Client {}] Websocket send error: {}", forward_uuid, e);
+            eprintln!("[Client {}] Websocket send error: {}", forward_id, e);
         }
     }));
     
-    let user = User {
-        uuid: client_uuid,
-        name: ucr.name.clone(),
-    };
-    
     // TODO: Fully separate client and user, so a client can connect without necessarily logging in.
     let client = OnlineClient {
-        user,
+        id: client_id,
+        user: None,
         wstx: tx
     };
     
     let login_acknowledgement_msg = json!({
         "type": "client-info.self",
+        "client": client,
         "user": client.user
     }).to_string();
     
     if let Err(_disconnected) = client.send_text(login_acknowledgement_msg) {
-        client_disconnected(client_uuid, &clients).await;
+        client_disconnected(client_id, &clients).await;
         return;
     }
     
     client_channel_broadcast_text(&json!({
         "type": "client.join",
-        "user": {
-            "uuid": client.user.uuid,
-            "name": client.user.name
-        }
+        "client": client
     }).to_string(), &clients).await;
     
-    let user_list: Vec<User> = clients.iter().map(|multiref| multiref.value().user.clone()).collect();
+    let user_list: Vec<User> = clients.iter().filter_map(|multiref| multiref.value().user.clone()).collect();
     let user_list_msg = json!({
         "type": "client-info.list",
         "users": user_list
     }).to_string();
     
     if let Err(_disconnected) = client.send_text(user_list_msg) {
-        client_disconnected(client_uuid, &clients).await;
+        client_disconnected(client_id, &clients).await;
         return;
     }
     
     // Save the sender in our list of connected clients.
-    clients.insert(client_uuid, client);
+    clients.insert(client_id, client);
     
     // Make an extra clone to give to our disconnection handler...
     let clients_cpy = clients.clone();
@@ -106,7 +111,7 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
         let msg = match result {
             Ok(msg) => msg,
             Err(e) => {
-                eprintln!("[Client {}] Websocket Error: {}", client_uuid, e);
+                eprintln!("[Client {}] Websocket Error: {}", client_id, e);
                 break;
             }
         };
@@ -119,7 +124,7 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
                 .find_map(|(i,b)| if *b == b':' {Some(i)} else {None}) {
                     Some(i) => i,
                     None => {
-                        eprintln!("[Client {}] Message invalid; could not find end of preload.", client_uuid);
+                        eprintln!("[Client {}] Message invalid; could not find end of preload.", client_id);
                         break;
                     }
                 };
@@ -129,7 +134,7 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
             let preload = match std::str::from_utf8(preload) {
                 Ok(str) => str,
                 Err(e) => {
-                    eprintln!("[Client {}] Message invalid; preload is not valid UTF-8: {}", client_uuid, e);
+                    eprintln!("[Client {}] Message invalid; preload is not valid UTF-8: {}", client_id, e);
                     break;
                 }
             };
@@ -138,14 +143,14 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
             
             if let Some(at) = at_index {
                 let (msg_type, msg_target) = preload.split_at(at);
-                eprintln!("[Client {}] Received Binary Message; type is '{}', target is '{}'.", client_uuid, msg_type, msg_target);
+                eprintln!("[Client {}] Received Binary Message; type is '{}', target is '{}'.", client_id, msg_type, msg_target);
                 
                 if msg_type == "channel.broadcast" {
                     client_channel_broadcast_binary(payload, &clients).await;
                 }
             } else {
                 let msg_type = preload;
-                eprintln!("[Client {}] Received Binary Message; type is '{}'.", client_uuid, msg_type);
+                eprintln!("[Client {}] Received Binary Message; type is '{}'.", client_id, msg_type);
             }
             
             continue;
@@ -155,7 +160,7 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
             let json = match serde_json::from_str::<serde_json::Value>(msg) {
                 Ok(json) => json,
                 Err(err) => {
-                    eprintln!("[Client {}] Message invalid; failed to parse JSON: {}", client_uuid, err);
+                    eprintln!("[Client {}] Message invalid; failed to parse JSON: {}", client_id, err);
                     break;
                 }
             };
@@ -163,7 +168,7 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
             let obj = match json {
                 serde_json::Value::Object(obj) => obj,
                 _ => {
-                    eprintln!("[Client {}] Message invalid; JSON root is not an object.", client_uuid);
+                    eprintln!("[Client {}] Message invalid; JSON root is not an object.", client_id);
                     break;
                 }
             };
@@ -171,20 +176,20 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
             let msg_type = match obj.get("type").map(|v| v.as_str()).flatten() {
                 Some(v) => v,
                 None => {
-                    eprintln!("[Client {}] Message invalid; no message type given.", client_uuid);
+                    eprintln!("[Client {}] Message invalid; no message type given.", client_id);
                     break;
                 },
             };
             
-            println!("[Client {}] Received JSON Message: {:?}", client_uuid, obj);
+            println!("[Client {}] Received JSON Message: {:?}", client_id, obj);
             
             match msg_type {
                 "channel.broadcast.formatted" => {
                     if let Some(msg) = obj.get("message").map(|v| v.as_str()).flatten() {
-                        client_channel_broadcast_formatted(client_uuid, msg, &clients).await;
+                        client_channel_broadcast_formatted(client_id, msg, &clients).await;
                         continue;
                     } else {
-                        eprintln!("[Client {}] User message packet is invalid: No message given.", client_uuid);
+                        eprintln!("[Client {}] User message packet is invalid: No message given.", client_id);
                         break;
                     }
                 },
@@ -192,7 +197,7 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
                     client_channel_broadcast_text(msg, &clients).await;
                 },
                 _ => {
-                    eprintln!("[Client {}] User packet is invalid: Unknown type -> {}", client_uuid, msg_type);
+                    eprintln!("[Client {}] User packet is invalid: Unknown type -> {}", client_id, msg_type);
                     break;
                 }
             }
@@ -201,14 +206,14 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
     
     // client_recv stream will keep processing as long as the user stays
     // connected. Once they disconnect, then...
-    client_disconnected(client_uuid, &clients_cpy).await;
+    client_disconnected(client_id, &clients_cpy).await;
 }
 
-pub async fn client_channel_broadcast_formatted(client_uuid: UserId, msg: &str, clients: &Clients) {
+pub async fn client_channel_broadcast_formatted(client_id: ClientId, msg: &str, clients: &Clients) {
     
     if msg.is_empty() {
-        println!("[Client {}] Received empty message: Discarding!", client_uuid);
-        if let Some(online_user) = clients.get(&client_uuid) {
+        println!("[Client {}] Received empty message: Discarding!", client_id);
+        if let Some(online_user) = clients.get(&client_id) {
             let err = json!({
                 "type": "user.message.error",
                 "error": "message too empty"
@@ -221,8 +226,8 @@ pub async fn client_channel_broadcast_formatted(client_uuid: UserId, msg: &str, 
     }
     
     if msg.len() > 1024 {
-        println!("[Client {}] Received large message: Discarding!", client_uuid);
-        if let Some(online_user) = clients.get(&client_uuid) {
+        println!("[Client {}] Received large message: Discarding!", client_id);
+        if let Some(online_user) = clients.get(&client_id) {
             let err = json!({
                 "type": "user.message.error",
                 "error": "message too long"
@@ -234,7 +239,7 @@ pub async fn client_channel_broadcast_formatted(client_uuid: UserId, msg: &str, 
         return;
     }
     
-    println!("[Client {}] Received message: Broadcasting...", client_uuid);
+    println!("[Client {}] Received message: Broadcasting...", client_id);
     
     use comrak::{markdown_to_html, ComrakOptions};
     let msg = markdown_to_html(&msg, &ComrakOptions::default());
@@ -242,7 +247,7 @@ pub async fn client_channel_broadcast_formatted(client_uuid: UserId, msg: &str, 
     let new_msg = json!({
         "type": "channel.broadcast.formatted",
         "view": "default",
-        "user": client_uuid,
+        "user": client_id,
         "message": msg
     }).to_string();
     
@@ -265,7 +270,7 @@ pub async fn client_channel_broadcast_binary(payload: &[u8], clients: &Clients) 
     }
 }
 
-pub async fn client_disconnected(my_id: UserId, clients: &Clients) {
+pub async fn client_disconnected(my_id: ClientId, clients: &Clients) {
     eprintln!("[Client {}] Disconnected!", my_id);
     
     let client_disconnect_msg = json!({
