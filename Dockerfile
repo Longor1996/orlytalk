@@ -18,5 +18,6 @@ FROM debian:buster-slim
 COPY --from=rust-builder /usr/local/cargo/bin/orly-server /usr/local/bin/orly-server
 COPY --from=www-builder /usr/src/orlytalk/orly-client-web/out/ /usr/local/bin/orly-server-www/
 
+HEALTHCHECK --interval=5m --timeout=1s CMD curl -f http://localhost:6991/ || exit 1
 EXPOSE 6991/tcp
 CMD ["orly-server"]
