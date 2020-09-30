@@ -72,7 +72,7 @@ async fn main() {
             ws.on_upgrade(move |socket| client_connected(socket, ucr, users))
     });
     
-    let www = warp::fs::dir(working_dir.join("www"));
+    let www = warp::fs::dir(working_dir.join("orly-server-www"));
     let routes = www.or(websocket);
     
     let serve = warp::serve(routes);

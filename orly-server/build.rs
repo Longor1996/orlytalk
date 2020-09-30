@@ -23,7 +23,7 @@ fn main() {
     let mut www_dst = workspace.clone();
     www_dst.push("target");
     www_dst.push(&profile);
-    www_dst.push("www");
+    www_dst.push("orly-server-www");
     
     println!("Workspace directory is {:?}", workspace);
     println!("WWW source directory is {:?}", www_src);
