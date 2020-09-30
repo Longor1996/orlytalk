@@ -1,4 +1,4 @@
-![Build Docker Image](https://github.com/Longor1996/orlytalk/workflows/Build%20Docker%20Image/badge.svg)
+[![GitHub license](https://img.shields.io/github/license/Longor1996/orlytalk.svg)](https://github.com/Longor1996/orlytalk/blob/master/LICENSE) ![Open Issues](https://img.shields.io/github/issues/Longor1996/orlytalk) ![Build Docker Image](https://github.com/Longor1996/orlytalk/workflows/Build%20Docker%20Image/badge.svg)
 
 # O'Rly Talk
 
