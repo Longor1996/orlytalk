@@ -25,8 +25,8 @@ Following is a table of all environment variables OrlyTalk will fetch and their 
 - [Git](https://git-scm.com/).
 - A recent version of rust (`1.46` or greater).
   - Download/Install [rustup](https://rustup.rs/).
-- A recent version of typescript (`4.0.2` or greater).
-  - If you have NPM installed, just run `npm install -g typescript`.
+- A recent version of the parcel bundler.
+  - If you have NPM installed, just run `npm install -g parcel-bundler`.
 - At least 1 GB of space on the drive you cloned the project to.
   - Rust and NPM cache *a lot* of stuff to make builds fast.
 
@@ -34,7 +34,7 @@ Then to build the project:
 
 1. Open a console/terminal in the project directory.
 2. Run `npm update`.
-3. Run `tsc -p ./orly-server/src/www/ts/tsconfig.json`.
+3. Run `npm run build`.
 4. Run `cargo build`.
 5. Done.
 
