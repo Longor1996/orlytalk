@@ -232,4 +232,6 @@ dist
 
 # End of https://www.toptal.com/developers/gitignore/api/node
 
-orly-server/src/www/js/*
+.trash
+orly-client-web/out/*
+db.sqlite

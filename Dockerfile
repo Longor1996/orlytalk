@@ -1,12 +1,13 @@
-FROM node as ts-builder
+FROM node as www-builder
 WORKDIR /usr/src/orlytalk
-RUN npm install -g typescript
+RUN npm install -g parcel-bundler
 COPY . .
-RUN tsc -p orly-server/src/www/ts/tsconfig.json
+RUN npm update
+RUN npm run build
 
 FROM rust as rust-builder
 WORKDIR /usr/src/orlytalk
-COPY --from=ts-builder /usr/src/orlytalk .
+COPY --from=www-builder /usr/src/orlytalk .
 RUN cargo install --path orly-server
 
 FROM debian:buster-slim
