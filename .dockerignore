@@ -1,0 +1,6 @@
+.cache
+.trash
+.vscode
+node_modules
+target
+db.sqlite
