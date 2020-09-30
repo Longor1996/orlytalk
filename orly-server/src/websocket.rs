@@ -76,7 +76,7 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
     let login_acknowledgement_msg = json!({
         "type": "client-info.self",
         "client": client,
-        "user": client.user
+        // "user": client.user // TODO: Use cookies so we can load and send this immediately?
     }).to_string();
     
     if let Err(_disconnected) = client.send_text(login_acknowledgement_msg) {
@@ -89,13 +89,13 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
         "client": client
     }).to_string(), &clients).await;
     
-    let user_list: Vec<User> = clients.iter().filter_map(|multiref| multiref.value().user.clone()).collect();
-    let user_list_msg = json!({
+    let client_list: Vec<User> = clients.iter().filter_map(|multiref| multiref.value().user.clone()).collect();
+    let client_list_msg = json!({
         "type": "client-info.list",
-        "users": user_list
+        "clients": client_list
     }).to_string();
     
-    if let Err(_disconnected) = client.send_text(user_list_msg) {
+    if let Err(_disconnected) = client.send_text(client_list_msg) {
         client_disconnected(client_id, &clients).await;
         return;
     }
