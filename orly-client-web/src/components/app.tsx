@@ -1,6 +1,37 @@
 import * as React from "react";
 import * as ReactDOM from "react-dom";
 
+function build_uri() {
+    // We can't assume the server has a certificate.
+    let secure   = false;
+    
+    // If we don't have a hostname, use localhost and pray for the best.
+    let hostname = window.location.hostname || 'localhost';
+    let port     = window.location.port; // default port
+    
+    // If client seems to be running over https, use secure connection.
+    if((window.location.protocol||'http:') === 'https:') {
+        secure = true;
+    }
+    
+    // This is for local testing without server-recompilation.
+    if((window.location.protocol||'file:') === 'file:' || hostname === 'localhost') {
+        hostname = 'localhost';
+        port = '6991';
+    }
+    
+    const HOST = hostname + (port ? ':' + port : '');
+    const URI = (secure ? 'wss://' : 'ws://') + HOST + '/websocket';
+    
+    return {
+        hostname: hostname,
+        port: port,
+        secure: secure,
+        host: HOST,
+        uri: URI
+    };
+}
+
 export class App extends React.Component {
     constructor(props) {
         super(props);
@@ -19,39 +50,8 @@ export class App extends React.Component {
     
     timeout = 250;
     
-    build_uri() {
-        // We can't assume the server has a certificate.
-        let secure   = false;
-        
-        // If we don't have a hostname, use localhost and pray for the best.
-        let hostname = window.location.hostname || 'localhost';
-        let port     = window.location.port; // default port
-        
-        // If client seems to be running over https, use secure connection.
-        if((window.location.protocol||'http:') === 'https:') {
-            secure = true;
-        }
-        
-        // This is for local testing without server-recompilation.
-        if((window.location.protocol||'file:') === 'file:' || hostname === 'localhost') {
-            hostname = 'localhost';
-            port = '6991';
-        }
-        
-        const HOST = hostname + (port ? ':' + port : '');
-        const URI = (secure ? 'wss://' : 'ws://') + HOST + '/websocket';
-        
-        return {
-            hostname: hostname,
-            port: port,
-            secure: secure,
-            host: HOST,
-            uri: URI
-        };
-    }
-    
     connect = () => {
-        var si = this.build_uri();
+        var si = build_uri();
         var ws = new WebSocket(si.uri);
         console.log("Connecting to server: ", si);
         
