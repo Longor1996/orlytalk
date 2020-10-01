@@ -66,7 +66,6 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
         }
     }));
     
-    // TODO: Fully separate client and user, so a client can connect without necessarily logging in.
     let client = OnlineClient {
         id: client_id,
         user: None,
@@ -247,7 +246,7 @@ pub async fn client_channel_broadcast_formatted(client_id: ClientId, msg: &str, 
     let new_msg = json!({
         "type": "channel.broadcast.formatted",
         "view": "default",
-        "user": client_id,
+        "client": client_id,
         "message": msg
     }).to_string();
     
