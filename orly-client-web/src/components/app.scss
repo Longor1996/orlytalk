@@ -1,0 +1,83 @@
+.app-superstate {
+    position: absolute;
+    top:0;left:0;right:0;bottom:0;
+    
+    color: white;
+    font-size: 5vw;
+    
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    .app-offline {
+        background: #000000;
+    }
+    
+    .app-connecting {
+        background: #001122;
+    }
+    
+    .app-error {
+        background: #221100;
+    }
+}
+
+$app-navigation-drawer-width: 16rem;
+
+.app-navigation-drawer {
+    position: absolute;
+    top:0;left:0;bottom:0;
+    width: $app-navigation-drawer-width;
+    
+    display: flex;
+    flex-flow: column nowrap;
+    
+    background: #333;
+    
+    .client-info {
+        color: white;
+    }
+}
+
+.app-content-container {
+    position: absolute;
+    top:0;right:0;bottom:0;
+    left: $app-navigation-drawer-width;
+}
+
+.app-channel-view {
+    display: flex;
+    flex-flow: column nowrap;
+    
+    background: #222;
+    color: white;
+}
+
+.message-composer {
+    flex: 0 0 auto;
+    display: flex;
+    
+    padding: 0.25rem;
+    color: white;
+    background: #444;
+    
+    input {
+        flex: 1 1 auto;
+        padding: 0.25rem;
+        background: #333;
+        border-radius: 5px;
+        border: 1px solid darkgray;
+    }
+    
+    input + button {
+        margin-left: 0.25rem;
+    }
+    
+    button {
+        flex: 0 0 auto;
+        
+        background: #333;
+        border-radius: 5px;
+        border: 1px solid darkgray;
+    }
+}

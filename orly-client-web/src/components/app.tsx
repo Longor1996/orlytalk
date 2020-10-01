@@ -1,127 +1,125 @@
 import * as React from "react";
+import {useState, useEffect} from "react";
 import * as ReactDOM from "react-dom";
+import { connect, useSelector } from 'react-redux';
+import { Connection } from "../connection";
+import { AppState } from "../state";
+import "./app.scss";
 
-function build_uri() {
-    // We can't assume the server has a certificate.
-    let secure   = false;
+export function AppRoot() {
+    const webstate = useSelector<AppState>(state => state._webstate);
     
-    // If we don't have a hostname, use localhost and pray for the best.
-    let hostname = window.location.hostname || 'localhost';
-    let port     = window.location.port; // default port
-    
-    // If client seems to be running over https, use secure connection.
-    if((window.location.protocol||'http:') === 'https:') {
-        secure = true;
+    if(webstate === 'offline') {
+        return <div className='app-superstate app-offline'>Offline.</div>;
     }
     
-    // This is for local testing without server-recompilation.
-    if((window.location.protocol||'file:') === 'file:' || hostname === 'localhost') {
-        hostname = 'localhost';
-        port = '6991';
+    if(webstate === 'connecting') {
+        return <div className='app-superstate app-connecting'>Connecting...</div>;
     }
     
-    const HOST = hostname + (port ? ':' + port : '');
-    const URI = (secure ? 'wss://' : 'ws://') + HOST + '/websocket';
+    if(webstate !== 'online') {
+        return <div className='app-superstate app-error'>ERROR</div>;
+    }
     
-    return {
-        hostname: hostname,
-        port: port,
-        secure: secure,
-        host: HOST,
-        uri: URI
-    };
-}
+    let main = <div className='app-content-container'></div>;
+    
+    if( 2*2 > 2 ) {
+        main = <AppChannelView />
+    }
+    
+    return <>
+        <AppNavigationDrawer />
+        {main}
+    </>
+};
 
-export class App extends React.Component {
+const AppNavigationDrawer = () => {
+    const client = useSelector<AppState, object>(state => state.client) as object;
+    
+    let client_info = client ? <div className='client-info'>
+        Client ID: {client?.id}
+    </div> : <div>Client ID: Unknown</div>;
+    
+    return <nav className='app-navigation-drawer'>
+        <div style={{flex: '1 0 auto'}}></div>
+        {client_info}
+    </nav>
+};
+
+const AppChannelView = () => {
+    const messages = useSelector<AppState, object>(state => state.messages) as Array<object>;
+    
+    return <main className='app-content-container app-channel-view'>
+        <div style={{flex: '1 0 auto'}}>
+            {messages.map(message => {
+                return <div dangerouslySetInnerHTML={{__html: message.message}}></div>;
+            })}
+        </div>
+        <MessageComposer />
+    </main>
+};
+
+/*
+class MessageComposer extends React.Component {
+    websocket: null|WebSocket = null;
+    
     constructor(props) {
         super(props);
-        this.state = {
-            ws: null
-        };
+        this.state = {message: ""};
+        this.websocket = this.context.store._webhook;
+        
+        ReactReduxContext.Consumer.
     }
     
-    get_socket(): null|WebSocket {
-        return this.state.ws as null|WebSocket;
+    change = (event) => {
+        this.setState({message: event.target.value});
     };
     
-    componentDidMount() {
-        this.connect();
-    }
-    
-    timeout = 250;
-    
-    connect = () => {
-        var si = build_uri();
-        var ws = new WebSocket(si.uri);
-        console.log("Connecting to server: ", si);
+    submit = (event: React.FormEvent<HTMLFormElement>) => {
         
-        let that = this;
-        var connectInterval;
+        let store = this.context.store._websocket;
+        debugger;
         
-        ws.onopen = () => {
-            console.log("Connected to Server", si);
-            this.setState({ws: ws});
-            that.timeout = 250;
-            clearTimeout(connectInterval);
-        };
-        
-        ws.onclose = (ev: CloseEvent) => {
-            let next_time = Math.min(1000, that.timeout + that.timeout) / 1000;
-            console.log(`WebSocket closed. Reconnecting in ${next_time} seconds...`, ev.reason);
-            
-            that.timeout = that.timeout + that.timeout;
-            connectInterval = setTimeout(this.check, Math.min(1000, that.timeout));
-            this.setState({ws: null});
-        };
-        
-        ws.onerror = (err: any) => {
-            console.error(`WebSocket encountered an error: `, err, "Closing WebSocket.");
-            ws.close();
-        };
-        
-        ws.onmessage = (ev: MessageEvent) => {
-            let message_data = ev.data;
-            
-            if(typeof message_data === "string") {
-                let json = JSON.parse(message_data);
-                let type = json['type'] ?? null;
-                
-                if(type === null) {
-                    console.error("Message has no type: ", json);
-                    return;
-                }
-                
-                console.log("RECV-TXT: ", type, json);
-                
-                if(typeof json['view'] === "string") {
-                    let view_id = json['view'];
-                    // TODO: View's?
-                }
-                
-            } else {
-                console.log("RECV-BIN: ", typeof message_data);
-            }
-        };
-    }
-    
-    check = () => {
-        const ws = this.get_socket();
-        if(!ws || ws.readyState == WebSocket.CLOSED) {
-            this.connect();
-        }
+        this.setState({message: ""});
+        event.preventDefault();
+        return false;
     };
-    
-    componentWillUnmount() {
-        this.get_socket() && this.get_socket().close();
-    }
     
     render() {
-        var ws = this.get_socket();
-        
-        if(ws === null) {
-            return <div className="error">No connection.</div>;
-        }
-        
-        return (<div>{ws.readyState}</div>)
+        return <form className='message-composer' onSubmit={(event) => {return this.submit(event)}}>
+            <input type='text'
+                value={this.state.message}
+                onChange={this.change}
+                onInput={this.change}
+            />
+            <button type='submit'>SEND</button>
+        </form>
     }
 }
+//*/
+
+let MessageComposer = ({dispatch}) => {
+    let [message, setMessage] = useState("");
+    
+    let submit = (event) => {
+        dispatch((dispatch, getState, {connection}: {connection: Connection}) => {
+            connection.send_txt("channel.broadcast.formatted", {
+                message: message
+            });
+        });
+        
+        setMessage("");
+        event.preventDefault();
+        return false;
+    };
+    
+    return <form className='message-composer' onSubmit={(event) => submit(event)}>
+        <input type='text'
+                value={message}
+                onChange={(event) => {setMessage(event.target.value)}}
+                onInput={(event) => {setMessage(event.target.value)}}
+            />
+            <button type='submit'>SEND</button>
+    </form>
+};
+MessageComposer = connect()(MessageComposer);
