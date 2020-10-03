@@ -22,7 +22,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-      
+    
+    - name: Get the version
+      id: get_version
+      run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
+    
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v1
       with:
@@ -44,7 +48,7 @@ jobs:
     - name: Upload
       uses: actions/upload-artifact@v2
       with:
-        name: orlytalk
+        name: orlytalk-${{ steps.get_version.outputs.VERSION }}
         path: |
           ${{github.workspace}}/target/${{env.MODE}}/*
           !${{github.workspace}}/target/${{env.MODE}}/.fingerprint
