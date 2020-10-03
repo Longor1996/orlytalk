@@ -8,7 +8,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  IMAGE_NAME: ${{ github.repository }}  
+  IMAGE_NAME: ${{ github.repository }}
+  MODE: release 
 
 jobs:
   build:
@@ -38,17 +39,17 @@ jobs:
       uses: Swatinem/rust-cache@v1.0.1
     
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --${{MODE}} --verbose
     
     - name: Upload
       uses: actions/upload-artifact@v2
       with:
         name: orlytalk
         path: |
-          ${{github.workspace}}/target/release/*
-          !${{github.workspace}}/target/release/.fingerprint
-          !${{github.workspace}}/target/release/build
-          !${{github.workspace}}/target/release/deps
-          !${{github.workspace}}/target/release/examples
-          !${{github.workspace}}/target/release/incremental
-          !${{github.workspace}}/target/release/.cargo-lock
+          ${{github.workspace}}/target/${{MODE}}/*
+          !${{github.workspace}}/target/${{MODE}}/.fingerprint
+          !${{github.workspace}}/target/${{MODE}}/build
+          !${{github.workspace}}/target/${{MODE}}/deps
+          !${{github.workspace}}/target/${{MODE}}/examples
+          !${{github.workspace}}/target/${{MODE}}/incremental
+          !${{github.workspace}}/target/${{MODE}}/.cargo-lock
