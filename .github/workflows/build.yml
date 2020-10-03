@@ -26,8 +26,9 @@ jobs:
       uses: actions/setup-node@v1
       with:
         node-version: ${{ matrix.node-version }}
-      
-    - run: npm update
+    
+    - uses: c-hive/gha-npm-cache@v1
+    - run: npm install
     
     - run: npm run build
     
@@ -44,10 +45,10 @@ jobs:
       with:
         name: orlytalk
         path: |
-          $GITHUB_WORKSPACE/target/release/*
-          !$GITHUB_WORKSPACE/target/release/.fingerprint
-          !$GITHUB_WORKSPACE/target/release/build
-          !$GITHUB_WORKSPACE/target/release/deps
-          !$GITHUB_WORKSPACE/target/release/examples
-          !$GITHUB_WORKSPACE/target/release/incremental
-          !$GITHUB_WORKSPACE/target/release/.cargo-lock
+          ${{env.GITHUB_WORKSPACE}}/target/release/*
+          !${{env.GITHUB_WORKSPACE}}/target/release/.fingerprint
+          !${{env.GITHUB_WORKSPACE}}/target/release/build
+          !${{env.GITHUB_WORKSPACE}}/target/release/deps
+          !${{env.GITHUB_WORKSPACE}}/target/release/examples
+          !${{env.GITHUB_WORKSPACE}}/target/release/incremental
+          !${{env.GITHUB_WORKSPACE}}/target/release/.cargo-lock
