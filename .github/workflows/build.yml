@@ -39,17 +39,17 @@ jobs:
       uses: Swatinem/rust-cache@v1.0.1
     
     - name: Build
-      run: cargo build --${{MODE}} --verbose
+      run: cargo build --${{env.MODE}} --verbose
     
     - name: Upload
       uses: actions/upload-artifact@v2
       with:
         name: orlytalk
         path: |
-          ${{github.workspace}}/target/${{MODE}}/*
-          !${{github.workspace}}/target/${{MODE}}/.fingerprint
-          !${{github.workspace}}/target/${{MODE}}/build
-          !${{github.workspace}}/target/${{MODE}}/deps
-          !${{github.workspace}}/target/${{MODE}}/examples
-          !${{github.workspace}}/target/${{MODE}}/incremental
-          !${{github.workspace}}/target/${{MODE}}/.cargo-lock
+          ${{github.workspace}}/target/${{env.MODE}}/*
+          !${{github.workspace}}/target/${{env.MODE}}/.fingerprint
+          !${{github.workspace}}/target/${{env.MODE}}/build
+          !${{github.workspace}}/target/${{env.MODE}}/deps
+          !${{github.workspace}}/target/${{env.MODE}}/examples
+          !${{github.workspace}}/target/${{env.MODE}}/incremental
+          !${{github.workspace}}/target/${{env.MODE}}/.cargo-lock
