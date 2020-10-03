@@ -45,10 +45,10 @@ jobs:
       with:
         name: orlytalk
         path: |
-          ${{env.GITHUB_WORKSPACE}}/target/release/*
-          !${{env.GITHUB_WORKSPACE}}/target/release/.fingerprint
-          !${{env.GITHUB_WORKSPACE}}/target/release/build
-          !${{env.GITHUB_WORKSPACE}}/target/release/deps
-          !${{env.GITHUB_WORKSPACE}}/target/release/examples
-          !${{env.GITHUB_WORKSPACE}}/target/release/incremental
-          !${{env.GITHUB_WORKSPACE}}/target/release/.cargo-lock
+          ${{github.workspace}}/target/release/*
+          !${{github.workspace}}/target/release/.fingerprint
+          !${{github.workspace}}/target/release/build
+          !${{github.workspace}}/target/release/deps
+          !${{github.workspace}}/target/release/examples
+          !${{github.workspace}}/target/release/incremental
+          !${{github.workspace}}/target/release/.cargo-lock
