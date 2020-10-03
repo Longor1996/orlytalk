@@ -10,8 +10,14 @@ export interface AppState {
     _websocket: null|WebSocket;
     _webstate: string;
     client: null|object;
-    clients: {};
-    messages: [];
+    clients: {[key: number]: object};
+    messages: Array<any>;
+    ui: AppUiState;
+}
+
+export interface AppUiState {
+    navdrawer: boolean,
+    usrdrawer: boolean,
 }
 
 export declare type AppStateAction = any;
@@ -23,25 +29,31 @@ const initial_app_state: AppState = {
     client: null,
     clients: {},
     messages: [],
+    ui: {
+        navdrawer: false,
+        usrdrawer: false
+    },
 };
 
 const app_state_producer = produce((draft: Draft<AppState>, action: AppStateAction) => {
     // do nothing for now
-    console.log("app_state_reduce", draft, action);
     let action_type = action.type;
     
     if(action_type === WS.ACTION_WEBSOCKET_INIT) {
         draft._webstate = 'connecting';
+        return;
     }
     
     if(action_type === WS.ACTION_WEBSOCKET_OPEN) {
         draft._webstate = 'online';
+        return;
     }
     
     if(action_type === WS.ACTION_WEBSOCKET_RECVTXT+'client-info.self') {
         let client = Object.freeze(action.client);
         draft.client = client;
         draft.clients[client.id] = client;
+        return;
     }
     
     if(action_type === WS.ACTION_WEBSOCKET_RECVTXT+'channel.broadcast.formatted') {
@@ -51,8 +63,15 @@ const app_state_producer = produce((draft: Draft<AppState>, action: AppStateActi
         });
         
         draft.messages.push(message);
+        return;
     }
     
+    if(action_type === 'ui:nav-drawer-toggle') {
+        draft.ui.navdrawer = !!!draft.ui.navdrawer;
+        return;
+    }
+    
+    console.log("app_state_reduce", draft, action);
 }, initial_app_state);
 
 export declare type AppStateReducer = Reducer<AppState, AppStateAction>;
