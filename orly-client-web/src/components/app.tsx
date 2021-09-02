@@ -88,7 +88,7 @@ let MessageComposer = ({dispatch}) => {
     
     let submit = (event) => {
         dispatch((dispatch, getState, {connection}: {connection: Connection}) => {
-            connection.send_txt("channel.broadcast.formatted", {
+            connection.send_txt("channel.broadcast.text.formatted", {
                 message: message
             });
         });
