@@ -1,6 +1,7 @@
 use serde::{Serialize, Deserialize};
+use uuid::Uuid;
 
-pub type UserId = u64;
+pub type UserId = Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct User {

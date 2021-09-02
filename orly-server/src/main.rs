@@ -17,6 +17,12 @@ use user::*;
 mod websocket;
 use websocket::*;
 
+pub struct RuntimeState {
+    pub clients: Clients,
+    pub users: Arc<DashMap<UserId, User>>,
+    pub database: tokio::sync::Mutex<rusqlite::Connection>,
+}
+
 #[tokio::main]
 async fn main() {
     dotenv::dotenv().ok();
@@ -59,29 +65,32 @@ async fn main() {
     // Clear out the cache...
     db_conn.flush_prepared_statement_cache();
     
-    let db_conn = Arc::new(tokio::sync::Mutex::from(db_conn));
-    let db_conn = warp::any().map(move || db_conn.clone());
+    let state = RuntimeState {
+        clients: DashMap::new().into(),
+        users: DashMap::new().into(),
+        database: tokio::sync::Mutex::from(db_conn),
+    };
     
-    let clients_map: Clients = Arc::new(DashMap::new());
-    let clients_ref = warp::any().map(move || clients_map.clone());
+    let state = Arc::new(state);
+    let state = warp::any().map(move || state.clone());
     
     let websocket = warp::path("websocket")
         .and(warp::path::end())
         .and(warp::query::<UserConnectionRequest>())
         .and(warp::ws())
-        .and(clients_ref)
-        .and(db_conn)
-        .map(|ucr: UserConnectionRequest, ws: warp::ws::Ws, users, _db_conn| {
-            ws.on_upgrade(move |socket| client_connected(socket, ucr, users))
-    });
+        .and(state)
+        .map(|ucr: UserConnectionRequest, ws: warp::ws::Ws, state: Arc<RuntimeState> | {
+            ws.on_upgrade(move |socket| client_connected(socket, ucr, state))
+        })
+    ;
     
     let www = warp::fs::dir(working_dir.join("orly-server-www"));
     let routes = websocket.or(www);
     
     let serve = warp::serve(routes);
     
-    let host: std::net::IpAddr = std::env::var("ORLYTALK_HOST").unwrap_or_else(|_e| "0.0.0.0".to_string()).parse().expect("Valid host");
-    let port: u16              = std::env::var("ORLYTALK_PORT").unwrap_or_else(|_e| "6991".to_string()).parse().expect("Valid port number");
+    let host: std::net::IpAddr = std::env::var("ORLYTALK_HOST").unwrap_or_else(|_e| "0.0.0.0".to_owned()).parse().expect("Valid host");
+    let port: u16              = std::env::var("ORLYTALK_PORT").unwrap_or_else(|_e| "6991".to_owned()).parse().expect("Valid port number");
     
     println!("Socket-Host: {:?}", host);
     println!("Socket-Port: {}", port);

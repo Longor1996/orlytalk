@@ -2,7 +2,7 @@
 
 use serde::{Serialize, Deserialize};
 use crate::user::UserId;
-use super::{ClientId, OnlineClient, User};
+use super::{ClientId, OnlineClient, OnlineClientInfo, User};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(tag = "type")]
@@ -15,13 +15,13 @@ pub enum OrlyMessage<'m> {
     ClientJoin { client: &'m OnlineClient },
     
     #[serde(rename = "client.leave", skip_deserializing)]
-    ClientLeave { client: ClientId, user: UserId },
+    ClientLeave { client: ClientId, user: Option<UserId> },
     
     #[serde(rename = "client-info.self", skip_deserializing)]
     ClientInfoSelf { client: &'m OnlineClient },
     
     #[serde(rename = "client-info.list", skip_deserializing)]
-    ClientInfoList { clients: Vec<User> },
+    ClientInfoList { clients: Vec<OnlineClientInfo> },
     
     #[serde(rename = "client.error", skip_deserializing)]
     ClientError { error: String },
@@ -39,7 +39,7 @@ pub enum OrlyMessage<'m> {
     ChannelBroadcast { message: String, view: String, client: ClientId },
     
     #[serde(rename = "channel.broadcast.data", skip_deserializing)]
-    ChannelBroadcastData { message: Vec<u8>, view: String, client: ClientId },
+    ChannelBroadcastData { message: &'m [u8], view: String, client: ClientId },
     
     #[serde(rename = "channel.broadcast.text.formatted", skip_deserializing)]
     ChannelBroadcastFormatted { message: String, view: String, client: ClientId },
@@ -88,8 +88,10 @@ impl OrlyMessage<'_> {
                     message: payload,
                 })
             }
-            
-            
+        }
+        
+        if msg.is_close() || msg.is_ping() || msg.is_pong() {
+            return Ok(OrlyMessage::Empty)
         }
         
         Err("unknown message type")
@@ -97,17 +99,23 @@ impl OrlyMessage<'_> {
     
     pub fn send(&self, client: &OnlineClient) {
         
-        // TODO: Match the messages that must be binary...
+        // NOTE: This is thoroughly unsafe and stupid.
+        if let OrlyMessage::ChannelBroadcastData {
+            message,
+            ..
+        } = self {
+            if let Err(err) = client.wstx.send(Ok(warp::ws::Message::binary(message.to_vec()))) {
+                eprintln!("Failed to send message: {}", err);
+            }
+        }
         
         // ...all other messages are sent as text.
         match serde_json::to_string(&self) {
-            Ok(str) => match client.wstx.send(Ok(warp::ws::Message::text(str))) {
-                Ok(_) => (),
-                Err(err) => eprintln!("Failed to send message: {}", err),
+            Ok(str) => if let Err(err) = client.wstx.send(Ok(warp::ws::Message::text(str))) {
+                eprintln!("Failed to send message: {}", err)
             },
             Err(err) => eprintln!("Failed to serialize message: {}", err),
         };
-        
     }
     
 }

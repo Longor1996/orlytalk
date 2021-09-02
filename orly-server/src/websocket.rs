@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use warp::ws::WebSocket;
 
 use serde::{Serialize, Deserialize};
@@ -7,39 +9,19 @@ use tokio::sync::mpsc;
 
 use dashmap::DashMap;
 
-use crate::User;
+use crate::{RuntimeState, User, UserId};
 pub type ClientId = u64;
 
 pub mod messages;
 pub use messages::*;
 
+pub mod client;
+pub use client::*;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct UserConnectionRequest {}
 
-#[derive(Serialize, Debug)]
-pub struct OnlineClient {
-    pub id: ClientId,
-    pub user: Option<User>,
-    
-    #[serde(skip)]
-    pub wstx: mpsc::UnboundedSender<Result<warp::ws::Message, warp::Error>>
-}
-
-impl OnlineClient {
-    /*
-    pub fn send_cow<'m, S>(&self, msg: S) where S: Into<std::borrow::Cow<'m, OrlyMessage<'m>>> {
-        msg.into().send(self);
-    }
-    */
-    
-    pub fn send(&self, msg: &OrlyMessage) {
-        msg.send(self);
-    }
-}
-
-pub type Clients = std::sync::Arc<DashMap<ClientId, OnlineClient>>;
-
-pub async fn client_connected(ws: WebSocket, _ucr: UserConnectionRequest, clients: Clients) {
+pub async fn client_connected(ws: WebSocket, _ucr: UserConnectionRequest, state: Arc<RuntimeState>) {
     use std::sync::atomic::AtomicU64;
     use std::sync::atomic::Ordering;
     lazy_static! {
@@ -47,6 +29,8 @@ pub async fn client_connected(ws: WebSocket, _ucr: UserConnectionRequest, client
             AtomicU64::new(0)
         };
     };
+    
+    let clients = state.clients.clone();
     
     // Use a counter to assign a new unique ID for this user.
     let client_id = CLIENT_ID_AUTO_INCREMENT.fetch_add(1, Ordering::Relaxed);
@@ -89,9 +73,17 @@ pub async fn client_connected(ws: WebSocket, _ucr: UserConnectionRequest, client
     
     client_channel_broadcast(&OrlyMessage::ClientJoin {client: &client}, &clients).await;
     
+    // This is horrible.
     client.send(&OrlyMessage::ClientInfoList {
         clients: clients.iter()
-            .filter_map(|multiref| multiref.value().user.clone())
+            .map(| m | OnlineClientInfo {
+                id: m.id,
+                user: m.user.map(|id| state.users
+                        .get(&id)
+                        .map(|u| u.value().clone())
+                    )
+                    .flatten()
+            })
             .collect()
     });
     
@@ -100,6 +92,8 @@ pub async fn client_connected(ws: WebSocket, _ucr: UserConnectionRequest, client
     
     // Make an extra clone to give to our disconnection handler...
     let clients_cpy = clients.clone();
+    
+    eprintln!("[Client {}] Now processing messages...", client_id);
     
     // Process messages coming from the client...
     while let Some(result) = client_recv.next().await {
@@ -110,6 +104,11 @@ pub async fn client_connected(ws: WebSocket, _ucr: UserConnectionRequest, client
                 break;
             }
         };
+        
+        if msg.is_close() {
+            eprintln!("[Client {}] Websocket Closing...", client_id);
+            break;
+        }
         
         let msg = match OrlyMessage::from_message(&msg) {
             Ok(msg) => msg,
@@ -158,8 +157,6 @@ pub async fn client_connected(ws: WebSocket, _ucr: UserConnectionRequest, client
         }
     }
     
-    // client_recv stream will keep processing as long as the user stays
-    // connected. Once they disconnect, then...
     client_disconnected(client_id, &clients_cpy).await;
 }
 
@@ -174,7 +171,8 @@ pub fn format_message(msg: &str) -> Result<String, &'static str> {
     }
     
     use comrak::{markdown_to_html, ComrakOptions};
-    let msg = markdown_to_html(msg, &ComrakOptions::default());
+    let opts = ComrakOptions::default();
+    let msg = markdown_to_html(msg, &opts);
     
     Ok(msg)
 }
@@ -185,16 +183,15 @@ pub async fn client_channel_broadcast(msg: &OrlyMessage<'_>, clients: &Clients) 
     }
 }
 
-pub async fn client_disconnected(my_id: ClientId, clients: &Clients) {
-    eprintln!("[Client {}] Disconnected!", my_id);
+pub async fn client_disconnected(client_id: ClientId, clients: &Clients) {
+    eprintln!("[Client {}] Disconnected!", client_id);
     
-    let msg = OrlyMessage::ClientLeave {
-        client: my_id,
-        user: my_id,
-    };
-    
-    client_channel_broadcast(&msg, clients).await;
-    
-    // Stream closed up, so remove from the user list
-    clients.remove(&my_id);
+    if let Some((_, client)) = clients.remove(&client_id) {
+        let msg = OrlyMessage::ClientLeave {
+            client: client.id,
+            user: client.user,
+        };
+        
+        client_channel_broadcast(&msg, clients).await;
+    }
 }
