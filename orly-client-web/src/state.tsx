@@ -59,7 +59,8 @@ const app_state_producer = produce((draft: Draft<AppState>, action: AppStateActi
     if(action_type === WS.ACTION_WEBSOCKET_RECVTXT+'channel.broadcast.text.formatted') {
         let message = Object.freeze({
             message: action.message,
-            client: action.client,
+            user: action.user,
+            view: action.view,
         });
         
         draft.messages.push(message);

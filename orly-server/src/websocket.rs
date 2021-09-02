@@ -35,6 +35,8 @@ pub async fn client_connected(ws: WebSocket, _ucr: UserConnectionRequest, state:
     // Use a counter to assign a new unique ID for this user.
     let client_id = CLIENT_ID_AUTO_INCREMENT.fetch_add(1, Ordering::Relaxed);
     
+    let user_id = uuid::Uuid::new_v4();
+    
     eprintln!("[Client {}] Connected!", &client_id);
     
     // Split the socket into a sender and receive of messages.
@@ -65,7 +67,7 @@ pub async fn client_connected(ws: WebSocket, _ucr: UserConnectionRequest, state:
     
     let client = OnlineClient {
         id: client_id,
-        user: None,
+        user: Some(user_id),
         wstx: tx
     };
     
@@ -86,6 +88,14 @@ pub async fn client_connected(ws: WebSocket, _ucr: UserConnectionRequest, state:
             })
             .collect()
     });
+    
+    {
+        let posts = state.messages.read().await;
+        for post in posts.iter() {
+            let msg = post.into();
+            client.send(&msg);
+        }
+    }
     
     // Save the sender in our list of connected clients.
     clients.insert(client_id, client);
@@ -123,7 +133,7 @@ pub async fn client_connected(ws: WebSocket, _ucr: UserConnectionRequest, state:
                 client_channel_broadcast(&OrlyMessage::ChannelBroadcastData {
                     message,
                     view: "default".to_owned(),
-                    client: client_id,
+                    user: user_id
                 }, &clients).await;
             }
             
@@ -133,7 +143,7 @@ pub async fn client_connected(ws: WebSocket, _ucr: UserConnectionRequest, state:
                         client_channel_broadcast(&OrlyMessage::ChannelBroadcastFormatted {
                             message,
                             view: "default".to_owned(),
-                            client: client_id,
+                            user: user_id
                         }, &clients).await;
                     },
                     Err(err) => {
@@ -146,7 +156,7 @@ pub async fn client_connected(ws: WebSocket, _ucr: UserConnectionRequest, state:
                 client_channel_broadcast(&OrlyMessage::ChannelBroadcast {
                     message,
                     view: "default".to_owned(),
-                    client: client_id,
+                    user: user_id
                 }, &clients).await;
             },
             

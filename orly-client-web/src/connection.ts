@@ -101,7 +101,7 @@ export function initiate_connection() {
                 timeout: timeout
             });
             
-            ws.close();
+            ws && ws.close();
         };
         
         ws.onmessage = (ev: MessageEvent) => {
@@ -151,8 +151,14 @@ export function initiate_connection() {
         ...json, type: type
     }));
     
+    window.addEventListener('beforeunload', () => {
+        ws && ws.close();
+        ws = null;
+    });
+    
     window.addEventListener('unload', () => {
         ws && ws.close();
+        ws = null;
     });
     
     return {

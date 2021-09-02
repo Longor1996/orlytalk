@@ -2,7 +2,7 @@
 
 use serde::{Serialize, Deserialize};
 use crate::user::UserId;
-use super::{ClientId, OnlineClient, OnlineClientInfo, User};
+use super::{ClientId, OnlineClient, OnlineClientInfo};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(tag = "type")]
@@ -36,13 +36,19 @@ pub enum OrlyMessage<'m> {
     ClientChannelBroadcastFormatted { message: String },
     
     #[serde(rename = "channel.broadcast.text", skip_deserializing)]
-    ChannelBroadcast { message: String, view: String, client: ClientId },
+    ChannelBroadcast { message: String, view: String, user: UserId },
     
     #[serde(rename = "channel.broadcast.data", skip_deserializing)]
-    ChannelBroadcastData { message: &'m [u8], view: String, client: ClientId },
+    ChannelBroadcastData { message: &'m [u8], view: String, user: UserId },
     
     #[serde(rename = "channel.broadcast.text.formatted", skip_deserializing)]
-    ChannelBroadcastFormatted { message: String, view: String, client: ClientId },
+    ChannelBroadcastFormatted { message: String, view: String, user: UserId },
+}
+
+#[derive(Serialize, Clone, Debug)]
+pub struct OrlyMessageTx<'m> {
+    #[serde(flatten)]
+    message: OrlyMessage<'m>,
 }
 
 impl OrlyMessage<'_> {

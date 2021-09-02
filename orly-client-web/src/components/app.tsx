@@ -42,7 +42,7 @@ const AppHeader = connect()(({dispatch}) => {
 });
 
 const AppNavigationDrawerToggleButton = connect()(({dispatch}) => {
-    const isNavVisible = (useSelector<AppState, object>(state => state.ui.navdrawer) as object);
+    const isNavVisible = (useSelector<AppState, boolean>(state => state.ui.navdrawer) as boolean);
     
     let svg = isNavVisible
         ? <svg style={{width:'3rem', height:'3rem'}} viewBox="0 0 24 24"><path fill='white' d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z" /></svg>
@@ -57,7 +57,7 @@ const AppNavigationDrawerToggleButton = connect()(({dispatch}) => {
 });
 
 const AppNavigationDrawer = () => {
-    const isVisible = (useSelector<AppState, object>(state => state.ui.navdrawer) as object) ? 'show' : 'hide';
+    const isVisible = (useSelector<AppState, boolean>(state => state.ui.navdrawer) as boolean) ? 'show' : 'hide';
     const client = useSelector<AppState, object>(state => state.client) as object;
     
     let client_info = client ? <div className='client-info'>
@@ -74,9 +74,13 @@ const AppChannelView = () => {
     const messages = useSelector<AppState, object>(state => state.messages) as Array<object>;
     
     return <main className='app-content-container app-channel-view'>
-        <div style={{flex: '1 1 auto', overflowY: 'auto'}}>
+        <div className='feed'>
             {messages.map(message => {
-                return <div dangerouslySetInnerHTML={{__html: message.message}}></div>;
+                return <div className='post'>
+                    <span className='post-user' dangerouslySetInnerHTML={{__html: message.user}}></span>
+                    &nbsp;
+                    <div className='post-text' dangerouslySetInnerHTML={{__html: message.message}}></div>
+                </div>;
             })}
         </div>
         <MessageComposer />

@@ -14,6 +14,8 @@ use dashmap::DashMap;
 mod user;
 use user::*;
 
+mod post;
+
 mod websocket;
 use websocket::*;
 
@@ -21,6 +23,7 @@ pub struct RuntimeState {
     pub clients: Clients,
     pub users: Arc<DashMap<UserId, User>>,
     pub database: tokio::sync::Mutex<rusqlite::Connection>,
+    pub messages: tokio::sync::RwLock<slice_deque::SliceDeque<post::Post>>,
 }
 
 #[tokio::main]
@@ -57,18 +60,33 @@ async fn main() {
     db_conn.execute("
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER NOT NULL UNIQUE PRIMARY KEY AUTOINCREMENT,
-            uuid BLOB NOT NULL UNIQUE,
+            uuid BLOB NOT NULL UNIQUE DEFAULT (randomblob(16)),
             current_name TEXT NOT NULL
+        );
+    ", rusqlite::params![]).expect("SQLite Statement");
+    
+    db_conn.execute("
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER NOT NULL UNIQUE PRIMARY KEY AUTOINCREMENT,
+            time DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')),
+            view TEXT NOT NULL DEFAULT \"default\",
+            user_id INTEGER NOT NULL,
+            user_uuid BLOB NOT NULL,
+            content TEXT NOT NULL
         );
     ", rusqlite::params![]).expect("SQLite Statement");
     
     // Clear out the cache...
     db_conn.flush_prepared_statement_cache();
     
+    let users = user::User::load_users(&db_conn).expect("loading users").into();
+    let messages = post::Post::load_posts(&db_conn).expect("loading past messages").into();
+    
     let state = RuntimeState {
         clients: DashMap::new().into(),
-        users: DashMap::new().into(),
         database: tokio::sync::Mutex::from(db_conn),
+        users,
+        messages,
     };
     
     let state = Arc::new(state);

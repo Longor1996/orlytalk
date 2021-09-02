@@ -10,7 +10,7 @@ build = "build.rs"
 # cdrs = "2.3.1"
 # elasticsearch = "7.6.1-alpha.1"
 
-rusqlite = {version = "0.25.3", features = ["bundled"]}
+rusqlite = {version = "0.25.3", features = ["bundled", "time", "blob", "chrono", "uuid"]}
 #diesel = { version = "1.4.5", features = ["sqlite"] }
 
 dotenv = "0.15.0"
@@ -18,8 +18,10 @@ tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "io-util", "
 futures = "0.3.5"
 warp = { version = "0.3.1", features = ["multipart", "websocket", "compression"]}
 dashmap = "4.0.2"
+slice-deque = "0.3.0"
 
 lazy_static = "1.4.0"
+chrono = { version = "0.4.19", features = ["serde"]}
 uuid = { version = "0.8", features = ["serde", "v4"] }
 serde = {version = "1.0.116", features = ["derive"]}
 serde_json = "1.0.58"
