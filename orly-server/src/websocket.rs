@@ -3,7 +3,7 @@ use warp::ws::{Message, WebSocket};
 use serde::{Serialize, Deserialize};
 use serde_json::json;
 
-use futures::{FutureExt, StreamExt};
+use futures::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 
 use dashmap::DashMap;
@@ -39,7 +39,7 @@ impl OnlineClient {
 
 pub type Clients = std::sync::Arc<DashMap<ClientId, OnlineClient>>;
 
-pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients: Clients) {
+pub async fn client_connected(ws: WebSocket, _ucr: UserConnectionRequest, clients: Clients) {
     use std::sync::atomic::AtomicU64;
     use std::sync::atomic::Ordering;
     lazy_static! {
@@ -60,11 +60,24 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
     // to the websocket...
     let forward_id = client_id;
     let (tx, rx) = mpsc::unbounded_channel();
-    tokio::task::spawn(rx.forward(client_send).map(move |result| {
-        if let Err(e) = result {
-            eprintln!("[Client {}] Websocket send error: {}", forward_id, e);
+    
+    tokio::task::spawn(async move {
+        let mut rx = rx;
+        let mut cs = client_send;
+        
+        while let Some(rx) = rx.recv().await {
+            match rx {
+                Ok(msg) => {
+                    println!("[Client {}] WebSocket Send: {:?}", forward_id, &msg);
+                    match cs.send(msg).await {
+                        Ok(_) => continue,
+                        Err(err) => eprintln!("[Client {}] WebSocket Send Error: {}", forward_id, err),
+                    }
+                },
+                Err(err) => eprintln!("[Client {}] WebSocket Send Receiver Error: {}", forward_id, err)
+            };
         }
-    }));
+    });
     
     let client = OnlineClient {
         id: client_id,
@@ -75,7 +88,7 @@ pub async fn client_connected(ws: WebSocket, ucr: UserConnectionRequest, clients
     let login_acknowledgement_msg = json!({
         "type": "client-info.self",
         "client": client,
-        // "user": client.user // TODO: Use cookies so we can load and send this immediately?
+        //"user": client.user // TODO: Use cookies so we can load and send this immediately?
     }).to_string();
     
     if let Err(_disconnected) = client.send_text(login_acknowledgement_msg) {

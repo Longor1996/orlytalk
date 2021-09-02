@@ -10,23 +10,24 @@ build = "build.rs"
 # cdrs = "2.3.1"
 # elasticsearch = "7.6.1-alpha.1"
 
-rusqlite = {version = "0.24.0", features = ["bundled"]}
+rusqlite = {version = "0.25.3", features = ["bundled"]}
+#diesel = { version = "1.4.5", features = ["sqlite"] }
 
 dotenv = "0.15.0"
-tokio = { version = "0.2", features = ["macros", "fs", "sync", "time"] }
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "io-util", "fs", "sync", "time", "process"] }
 futures = "0.3.5"
-warp = "0.2.5"
-dashmap = "3.11.10"
+warp = { version = "0.3.1", features = ["multipart", "websocket", "compression"]}
+dashmap = "4.0.2"
 
 lazy_static = "1.4.0"
 uuid = { version = "0.8", features = ["serde", "v4"] }
 serde = {version = "1.0.116", features = ["derive"]}
 serde_json = "1.0.58"
-comrak = {version = "0.8.2", default-features = false}
+comrak = {version = "0.12.0", default-features = false}
 
 [dev-dependencies]
 walkdir = "2.3.1"
 
 [build-dependencies]
-built = {version = "0.4.3", features = ["git2", "semver"]}
+built = {version = "0.5.1", features = ["git2", "semver"]}
 dircpy = "0.3.4"

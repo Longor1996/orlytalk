@@ -67,7 +67,7 @@ const app_state_producer = produce((draft: Draft<AppState>, action: AppStateActi
     }
     
     if(action_type === 'ui:nav-drawer-toggle') {
-        draft.ui.navdrawer = !!!draft.ui.navdrawer;
+        draft.ui.navdrawer = !(!!draft.ui.navdrawer);
         return;
     }
     
