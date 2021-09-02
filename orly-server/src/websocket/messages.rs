@@ -6,6 +6,7 @@ use super::{ClientId, OnlineClient, User};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(tag = "type")]
+#[allow(dead_code)]
 pub enum OrlyMessage<'m> {
     #[serde(rename = "empty")]
     Empty,

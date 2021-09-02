@@ -1,4 +1,4 @@
-use warp::ws::{Message, WebSocket};
+use warp::ws::WebSocket;
 
 use serde::{Serialize, Deserialize};
 
@@ -122,7 +122,7 @@ pub async fn client_connected(ws: WebSocket, _ucr: UserConnectionRequest, client
         match msg {
             OrlyMessage::ClientChannelBroadcastData { message } => {
                 client_channel_broadcast(&OrlyMessage::ChannelBroadcastData {
-                    message: message.to_vec(),
+                    message,
                     view: "default".to_owned(),
                     client: client_id,
                 }, &clients).await;
